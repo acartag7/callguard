@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "callguard"
+version = "0.0.1"
+description = "Runtime safety for AI agents. Stop agents before they break things."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Arnold Cartagena" },
+]
+
+[project.optional-dependencies]
+redis = ["redis>=5.0"]
+otel = ["opentelemetry-api>=1.20", "opentelemetry-sdk>=1.20"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4"]
+
+[project.urls]
+Homepage = "https://github.com/acartag7/callguard"
+Documentation = "https://github.com/acartag7/callguard"

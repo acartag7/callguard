@@ -1,0 +1,1 @@
+"""CallGuard framework adapters."""
