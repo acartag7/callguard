@@ -1,0 +1,19 @@
+apiVersion: callguard/v1
+kind: ContractBundle
+
+metadata:
+  name: bad-regex
+
+defaults:
+  mode: enforce
+
+contracts:
+  - id: bad-regex
+    type: pre
+    tool: bash
+    when:
+      args.command:
+        matches: '[invalid('
+    then:
+      effect: deny
+      message: "This has an invalid regex."

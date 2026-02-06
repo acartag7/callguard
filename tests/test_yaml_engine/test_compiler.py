@@ -1,0 +1,311 @@
+"""Tests for the YAML contract compiler."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from callguard.contracts import Verdict
+from callguard.envelope import Principal, create_envelope
+from callguard.yaml_engine.compiler import CompiledBundle, compile_contracts, _expand_message
+from callguard.yaml_engine.loader import load_bundle
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _load_and_compile(fixture: str) -> CompiledBundle:
+    data, _ = load_bundle(FIXTURES / fixture)
+    return compile_contracts(data)
+
+
+def _envelope(tool_name="read_file", args=None, environment="production", principal=None):
+    return create_envelope(
+        tool_name=tool_name,
+        tool_input=args or {},
+        environment=environment,
+        principal=principal,
+    )
+
+
+class TestCompilePreConditions:
+    def test_pre_contracts_compiled(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        assert len(bundle.preconditions) == 1
+
+    def test_pre_contract_metadata(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        fn = bundle.preconditions[0]
+        assert fn.__name__ == "block-sensitive-reads"
+        assert fn._callguard_type == "precondition"
+        assert fn._callguard_tool == "read_file"
+        assert fn._callguard_id == "block-sensitive-reads"
+
+    def test_pre_contract_denies_matching(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        fn = bundle.preconditions[0]
+        env = _envelope(args={"path": "/home/user/.env"})
+        verdict = fn(env)
+        assert not verdict.passed
+        assert "blocked" in verdict.message.lower() or ".env" in verdict.message
+
+    def test_pre_contract_passes_non_matching(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        fn = bundle.preconditions[0]
+        env = _envelope(args={"path": "/home/user/readme.md"})
+        verdict = fn(env)
+        assert verdict.passed
+
+    def test_pre_contract_tags_in_metadata(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        fn = bundle.preconditions[0]
+        env = _envelope(args={"path": ".env"})
+        verdict = fn(env)
+        assert verdict.metadata.get("tags") == ["secrets", "dlp"]
+
+    def test_pre_contract_passes_when_field_missing(self):
+        """Missing field evaluates to false — rule doesn't fire."""
+        bundle = _load_and_compile("valid_bundle.yaml")
+        fn = bundle.preconditions[0]
+        env = _envelope(args={})
+        verdict = fn(env)
+        assert verdict.passed
+
+
+class TestCompilePostConditions:
+    def test_post_contracts_compiled(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        assert len(bundle.postconditions) == 1
+
+    def test_post_contract_metadata(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        fn = bundle.postconditions[0]
+        assert fn.__name__ == "pii-in-output"
+        assert fn._callguard_type == "postcondition"
+        assert fn._callguard_tool == "*"
+
+    def test_post_contract_warns_on_match(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        fn = bundle.postconditions[0]
+        env = _envelope()
+        verdict = fn(env, "SSN: 123-45-6789")
+        assert not verdict.passed
+        assert verdict.metadata.get("tags") == ["pii"]
+
+    def test_post_contract_passes_no_match(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        fn = bundle.postconditions[0]
+        env = _envelope()
+        verdict = fn(env, "No PII here")
+        assert verdict.passed
+
+
+class TestCompileSessionContracts:
+    def test_session_contracts_compiled(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        assert len(bundle.session_contracts) == 1
+
+    def test_session_limits_merged(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        assert bundle.limits.max_tool_calls == 50
+        assert bundle.limits.max_attempts == 120
+
+
+class TestDisabledContracts:
+    def test_disabled_contract_skipped(self):
+        bundle_data = {
+            "apiVersion": "callguard/v1",
+            "kind": "ContractBundle",
+            "metadata": {"name": "test"},
+            "defaults": {"mode": "enforce"},
+            "contracts": [
+                {
+                    "id": "disabled-rule",
+                    "type": "pre",
+                    "enabled": False,
+                    "tool": "read_file",
+                    "when": {"args.path": {"contains": ".env"}},
+                    "then": {"effect": "deny", "message": "blocked"},
+                }
+            ],
+        }
+        compiled = compile_contracts(bundle_data)
+        assert len(compiled.preconditions) == 0
+
+    def test_enabled_contract_included(self):
+        bundle_data = {
+            "apiVersion": "callguard/v1",
+            "kind": "ContractBundle",
+            "metadata": {"name": "test"},
+            "defaults": {"mode": "enforce"},
+            "contracts": [
+                {
+                    "id": "enabled-rule",
+                    "type": "pre",
+                    "enabled": True,
+                    "tool": "read_file",
+                    "when": {"args.path": {"contains": ".env"}},
+                    "then": {"effect": "deny", "message": "blocked"},
+                }
+            ],
+        }
+        compiled = compile_contracts(bundle_data)
+        assert len(compiled.preconditions) == 1
+
+
+class TestModeOverride:
+    def test_default_mode_used(self):
+        bundle = _load_and_compile("valid_bundle.yaml")
+        assert bundle.default_mode == "enforce"
+        # Contract without mode override inherits default
+        fn = bundle.preconditions[0]
+        assert fn._callguard_mode == "enforce"
+
+    def test_per_rule_mode_override(self):
+        bundle_data = {
+            "apiVersion": "callguard/v1",
+            "kind": "ContractBundle",
+            "metadata": {"name": "test"},
+            "defaults": {"mode": "enforce"},
+            "contracts": [
+                {
+                    "id": "observe-rule",
+                    "type": "pre",
+                    "mode": "observe",
+                    "tool": "read_file",
+                    "when": {"args.path": {"contains": ".env"}},
+                    "then": {"effect": "deny", "message": "blocked"},
+                }
+            ],
+        }
+        compiled = compile_contracts(bundle_data)
+        fn = compiled.preconditions[0]
+        assert fn._callguard_mode == "observe"
+
+
+class TestMessageTemplating:
+    def test_simple_placeholder(self):
+        env = _envelope(args={"path": "/etc/passwd"})
+        msg = _expand_message("File '{args.path}' blocked.", env)
+        assert msg == "File '/etc/passwd' blocked."
+
+    def test_tool_name_placeholder(self):
+        env = _envelope(tool_name="bash")
+        msg = _expand_message("Tool {tool.name} blocked.", env)
+        assert msg == "Tool bash blocked."
+
+    def test_missing_placeholder_kept(self):
+        env = _envelope(args={})
+        msg = _expand_message("File '{args.path}' blocked.", env)
+        assert msg == "File '{args.path}' blocked."
+
+    def test_placeholder_capped_at_200(self):
+        long_path = "x" * 300
+        env = _envelope(args={"path": long_path})
+        msg = _expand_message("{args.path}", env)
+        assert len(msg) == 200
+        assert msg.endswith("...")
+
+    def test_multiple_placeholders(self):
+        env = _envelope(tool_name="read_file", args={"path": "/tmp"})
+        msg = _expand_message("{tool.name}: {args.path}", env)
+        assert msg == "read_file: /tmp"
+
+    def test_environment_placeholder(self):
+        env = _envelope(environment="staging")
+        msg = _expand_message("Env: {environment}", env)
+        assert msg == "Env: staging"
+
+    def test_principal_placeholder(self):
+        env = _envelope(principal=Principal(user_id="alice"))
+        msg = _expand_message("User: {principal.user_id}", env)
+        assert msg == "User: alice"
+
+
+class TestThenMetadata:
+    def test_then_metadata_in_verdict(self):
+        bundle_data = {
+            "apiVersion": "callguard/v1",
+            "kind": "ContractBundle",
+            "metadata": {"name": "test"},
+            "defaults": {"mode": "enforce"},
+            "contracts": [
+                {
+                    "id": "meta-rule",
+                    "type": "pre",
+                    "tool": "read_file",
+                    "when": {"args.path": {"contains": ".env"}},
+                    "then": {
+                        "effect": "deny",
+                        "message": "blocked",
+                        "tags": ["secrets"],
+                        "metadata": {"severity": "high", "category": "dlp"},
+                    },
+                }
+            ],
+        }
+        compiled = compile_contracts(bundle_data)
+        fn = compiled.preconditions[0]
+        env = _envelope(args={"path": ".env"})
+        verdict = fn(env)
+        assert not verdict.passed
+        assert verdict.metadata.get("tags") == ["secrets"]
+        assert verdict.metadata.get("severity") == "high"
+        assert verdict.metadata.get("category") == "dlp"
+
+
+class TestPolicyError:
+    def test_type_mismatch_sets_policy_error(self):
+        bundle_data = {
+            "apiVersion": "callguard/v1",
+            "kind": "ContractBundle",
+            "metadata": {"name": "test"},
+            "defaults": {"mode": "enforce"},
+            "contracts": [
+                {
+                    "id": "type-mismatch",
+                    "type": "pre",
+                    "tool": "*",
+                    "when": {"args.count": {"gt": 5}},
+                    "then": {"effect": "deny", "message": "Count too high."},
+                }
+            ],
+        }
+        compiled = compile_contracts(bundle_data)
+        fn = compiled.preconditions[0]
+        env = _envelope(args={"count": "not_a_number"})
+        verdict = fn(env)
+        assert not verdict.passed
+        assert verdict.metadata.get("policy_error") is True
+
+
+class TestSessionLimitsMerging:
+    def test_multiple_session_contracts_merge(self):
+        bundle_data = {
+            "apiVersion": "callguard/v1",
+            "kind": "ContractBundle",
+            "metadata": {"name": "test"},
+            "defaults": {"mode": "enforce"},
+            "contracts": [
+                {
+                    "id": "limits-1",
+                    "type": "session",
+                    "limits": {"max_tool_calls": 100, "max_attempts": 200},
+                    "then": {"effect": "deny", "message": "limit 1"},
+                },
+                {
+                    "id": "limits-2",
+                    "type": "session",
+                    "limits": {
+                        "max_tool_calls": 50,
+                        "max_calls_per_tool": {"bash": 10},
+                    },
+                    "then": {"effect": "deny", "message": "limit 2"},
+                },
+            ],
+        }
+        compiled = compile_contracts(bundle_data)
+        # Should take the more restrictive (lower) value
+        assert compiled.limits.max_tool_calls == 50
+        assert compiled.limits.max_attempts == 200
+        assert compiled.limits.max_calls_per_tool == {"bash": 10}

@@ -1,0 +1,45 @@
+apiVersion: callguard/v1
+kind: ContractBundle
+
+metadata:
+  name: file-agent
+  description: "Contracts for file-handling agents. Blocks sensitive reads and destructive bash."
+
+defaults:
+  mode: enforce
+
+contracts:
+  - id: block-sensitive-reads
+    type: pre
+    tool: read_file
+    when:
+      args.path:
+        contains_any: [".env", ".secret", "kubeconfig", "credentials", ".pem", "id_rsa"]
+    then:
+      effect: deny
+      message: "Sensitive file '{args.path}' blocked."
+      tags: [secrets, dlp]
+
+  - id: block-destructive-bash
+    type: pre
+    tool: bash
+    when:
+      any:
+        - args.command: { matches: '\\brm\\s+(-rf?|--recursive)\\b' }
+        - args.command: { matches: '\\bmkfs\\b' }
+        - args.command: { contains: '> /dev/' }
+    then:
+      effect: deny
+      message: "Destructive command blocked: '{args.command}'."
+      tags: [destructive, safety]
+
+  - id: block-write-outside-target
+    type: pre
+    tool: write_file
+    when:
+      args.path:
+        starts_with: /
+    then:
+      effect: deny
+      message: "Write to absolute path '{args.path}' blocked. Use relative paths."
+      tags: [write-scope]
