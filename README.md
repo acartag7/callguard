@@ -1,5 +1,9 @@
 # CallGuard
 
+[![PyPI](https://img.shields.io/pypi/v/callguard)](https://pypi.org/project/callguard/)
+[![Python](https://img.shields.io/pypi/pyversions/callguard)](https://pypi.org/project/callguard/)
+[![License](https://img.shields.io/pypi/l/callguard)](LICENSE)
+
 **Runtime safety for AI agents.** Stop agents before they break things.
 
 Nothing sits between an AI agent deciding to call `rm -rf /` and it happening. CallGuard is that layer. It intercepts every tool call, enforces contracts and operation limits, logs a structured audit trail, and returns actionable error messages so agents self-correct instead of failing silently. Zero runtime dependencies. Drop it in front of any tool-calling agent.
