@@ -25,7 +25,6 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-
 # ---------------------------------------------------------------------------
 # Test fixtures — YAML bundles
 # ---------------------------------------------------------------------------
@@ -302,8 +301,7 @@ def write_file(content: str, suffix: str = ".yaml") -> str:
 
 # This import will fail until the agent creates the module.
 # The agent should make it work.
-from callguard.cli.main import cli
-
+from callguard.cli.main import cli  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # 1. callguard validate
@@ -724,7 +722,7 @@ class TestReplayCommand:
         contracts = write_file(VALID_BUNDLE)
         output_path = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False).name
         runner = CliRunner()
-        result = runner.invoke(cli, [
+        runner.invoke(cli, [
             "replay", contracts,
             "--audit-log", audit_log,
             "--output", output_path,
@@ -778,7 +776,11 @@ class TestReplayCommand:
 
     def test_replay_malformed_log_line(self):
         """Malformed JSONL lines should be skipped with a warning, not crash."""
-        log_content = '{"action":"call_allowed","tool_name":"bash","tool_args":{"command":"ls"}}\nnot json\n{"action":"call_allowed","tool_name":"bash","tool_args":{"command":"pwd"}}'
+        log_content = (
+            '{"action":"call_allowed","tool_name":"bash","tool_args":{"command":"ls"}}\n'
+            'not json\n'
+            '{"action":"call_allowed","tool_name":"bash","tool_args":{"command":"pwd"}}'
+        )
         log_path = write_file(log_content, suffix=".jsonl")
         contracts = write_file(VALID_BUNDLE)
         runner = CliRunner()

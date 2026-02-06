@@ -73,7 +73,6 @@ def _validate_unique_ids(data: dict) -> None:
 
 def _validate_regexes(data: dict) -> None:
     """Compile all regex patterns at load time to catch invalid patterns early."""
-    from callguard import CallGuardConfigError
 
     for contract in data.get("contracts", []):
         when = contract.get("when")
@@ -83,7 +82,6 @@ def _validate_regexes(data: dict) -> None:
 
 def _validate_expression_regexes(expr: dict | Any) -> None:
     """Recursively validate regex patterns in expressions."""
-    from callguard import CallGuardConfigError
 
     if not isinstance(expr, dict):
         return

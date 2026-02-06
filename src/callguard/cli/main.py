@@ -23,9 +23,7 @@ except ImportError:
 
 from callguard import CallGuardConfigError
 from callguard.envelope import Principal, ToolEnvelope, create_envelope
-from callguard.yaml_engine.evaluator import _PolicyError, evaluate_expression
 from callguard.yaml_engine.loader import load_bundle
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -213,7 +211,7 @@ def check(
         _console.print(f"  Rules evaluated: {n_evaluated}")
         sys.exit(1)
     else:
-        _console.print(f"[green bold]ALLOWED[/green bold]")
+        _console.print("[green bold]ALLOWED[/green bold]")
         _console.print(f"  Rules evaluated: {n_evaluated} contract(s)")
         sys.exit(0)
 
@@ -394,7 +392,7 @@ def replay(file: str, audit_log: str, output: str | None) -> None:
         _console.print(f"  ({skipped} lines skipped due to invalid JSON)")
 
     if changes:
-        _console.print(f"\n[yellow]Changed verdicts:[/yellow]")
+        _console.print("\n[yellow]Changed verdicts:[/yellow]")
         for entry in report_lines:
             if entry["changed"]:
                 _console.print(

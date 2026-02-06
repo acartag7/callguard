@@ -4,11 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-from callguard.contracts import Verdict
 from callguard.envelope import Principal, create_envelope
-from callguard.yaml_engine.compiler import CompiledBundle, compile_contracts, _expand_message
+from callguard.yaml_engine.compiler import CompiledBundle, _expand_message, compile_contracts
 from callguard.yaml_engine.loader import load_bundle
 
 FIXTURES = Path(__file__).parent / "fixtures"

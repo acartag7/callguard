@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from callguard.envelope import Principal, ToolEnvelope, create_envelope
 from callguard.yaml_engine.evaluator import _PolicyError, evaluate_expression
-
 
 # --- Helpers ---
 

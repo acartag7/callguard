@@ -9,39 +9,25 @@ Run with: pytest tests/test_integration/test_end_to_end.py -v
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
-import re
 import tempfile
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, patch
 
 import pytest
-import yaml
 
 from callguard import (
     AuditAction,
     AuditEvent,
-    AuditSink,
     CallGuard,
     CallGuardDenied,
     FileAuditSink,
-    MemoryBackend,
-    OperationLimits,
     Principal,
-    RedactionPolicy,
-    SideEffect,
     ToolEnvelope,
     Verdict,
-    create_envelope,
     precondition,
 )
-from callguard.pipeline import GovernancePipeline, PreDecision, PostDecision
-from callguard.session import Session
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -449,7 +435,7 @@ class TestPrincipalIntegration:
         With no principal, principal.role is missing → false.
         BUT the 'all' requires BOTH conditions to be true. Missing field → false means
         the 'not_in' check returns false, so the 'all' is false, so the rule doesn't fire.
-        
+
         HOWEVER: prod-requires-ticket checks principal.ticket_ref: { exists: false }.
         With no principal, ticket_ref is missing, and exists: false means "absent or null"
         which is TRUE. So this rule SHOULD fire.
@@ -531,7 +517,7 @@ class TestPostconditionIntegration:
         # Tool should still succeed (postconditions are warn-only)
         assert "123-45-6789" in result
         # But a postcondition warning should be in audit
-        warnings = sink.filter(AuditAction.POSTCONDITION_WARNING)
+        sink.filter(AuditAction.POSTCONDITION_WARNING)
         # Or check the executed event has postconditions_passed=False
         executed = sink.filter(AuditAction.CALL_EXECUTED)
         assert len(executed) >= 1

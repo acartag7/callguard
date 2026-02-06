@@ -8,7 +8,7 @@ import pytest
 
 from callguard import CallGuard, CallGuardConfigError, CallGuardDenied
 from callguard.contracts import Verdict, precondition
-from callguard.envelope import Principal, create_envelope
+from callguard.envelope import create_envelope
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
