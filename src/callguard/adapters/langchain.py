@@ -116,6 +116,30 @@ class LangChainAdapter:
             self._pending.pop(tool_call_id, None)
             return self._deny(decision.reason, tool_call_id)
 
+        # Handle per-rule observed denials
+        if decision.observed:
+            for cr in decision.contracts_evaluated:
+                if cr.get("observed") and not cr.get("passed"):
+                    await self._guard.audit_sink.emit(
+                        AuditEvent(
+                            action=AuditAction.CALL_WOULD_DENY,
+                            run_id=envelope.run_id,
+                            call_id=envelope.call_id,
+                            call_index=envelope.call_index,
+                            tool_name=envelope.tool_name,
+                            tool_args=self._guard.redaction.redact_args(envelope.args),
+                            side_effect=envelope.side_effect.value,
+                            environment=envelope.environment,
+                            principal=asdict(envelope.principal) if envelope.principal else None,
+                            decision_source="precondition",
+                            decision_name=cr["name"],
+                            reason=cr["message"],
+                            mode="observe",
+                            policy_version=self._guard.policy_version,
+                            policy_error=decision.policy_error,
+                        )
+                    )
+
         # Allow
         await self._emit_audit_pre(envelope, decision)
         span.set_attribute("governance.action", "allowed")
@@ -156,6 +180,7 @@ class LangChainAdapter:
                 session_execution_count=await self._session.execution_count(),
                 mode=self._guard.mode,
                 policy_version=self._guard.policy_version,
+                policy_error=post_decision.policy_error,
             )
         )
 
@@ -187,6 +212,7 @@ class LangChainAdapter:
                 session_execution_count=await self._session.execution_count(),
                 mode=self._guard.mode,
                 policy_version=self._guard.policy_version,
+                policy_error=decision.policy_error,
             )
         )
 

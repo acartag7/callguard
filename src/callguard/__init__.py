@@ -199,8 +199,7 @@ class CallGuard:
         template_path = templates_dir / f"{name}.yaml"
         if not template_path.exists():
             raise CallGuardConfigError(
-                f"Template '{name}' not found. "
-                f"Available: {', '.join(p.stem for p in templates_dir.glob('*.yaml'))}"
+                f"Template '{name}' not found. Available: {', '.join(p.stem for p in templates_dir.glob('*.yaml'))}"
             )
         return cls.from_yaml(
             template_path,
@@ -295,7 +294,10 @@ class CallGuard:
         # Pre-execute
         pre = await pipeline.pre_execute(envelope, session)
 
-        if pre.action == "deny":
+        # Determine if this is a real deny or just per-rule observed denials
+        real_deny = pre.action == "deny" and not pre.observed
+
+        if real_deny:
             audit_action = AuditAction.CALL_WOULD_DENY if self.mode == "observe" else AuditAction.CALL_DENIED
             await self._emit_run_pre_audit(envelope, session, audit_action, pre)
             self.telemetry.record_denial(envelope, pre.reason)
@@ -330,6 +332,7 @@ class CallGuard:
                             reason=cr["message"],
                             mode="observe",
                             policy_version=self.policy_version,
+                            policy_error=pre.policy_error,
                         )
                     )
             await self._emit_run_pre_audit(envelope, session, AuditAction.CALL_ALLOWED, pre)
@@ -369,6 +372,7 @@ class CallGuard:
                 session_execution_count=await session.execution_count(),
                 mode=self.mode,
                 policy_version=self.policy_version,
+                policy_error=post.policy_error,
             )
         )
 
@@ -381,9 +385,7 @@ class CallGuard:
 
         return result
 
-    async def _emit_run_pre_audit(
-        self, envelope, session, action: AuditAction, pre: PreDecision
-    ) -> None:
+    async def _emit_run_pre_audit(self, envelope, session, action: AuditAction, pre: PreDecision) -> None:
         await self.audit_sink.emit(
             AuditEvent(
                 action=action,
@@ -403,6 +405,7 @@ class CallGuard:
                 session_execution_count=await session.execution_count(),
                 mode=self.mode,
                 policy_version=self.policy_version,
+                policy_error=pre.policy_error,
             )
         )
 

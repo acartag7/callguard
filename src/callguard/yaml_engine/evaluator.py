@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 from callguard.envelope import ToolEnvelope
 
+logger = logging.getLogger(__name__)
+
 # Sentinel for "field not found"
 _MISSING = object()
+
+# Cap regex input to prevent catastrophic backtracking DoS
+MAX_REGEX_INPUT = 10_000
 
 
 def evaluate_expression(
@@ -238,15 +244,21 @@ def _op_ends_with(field_value: Any, op_value: str) -> bool:
 def _op_matches(field_value: Any, op_value: str | re.Pattern) -> bool:
     if not isinstance(field_value, str):
         raise TypeError
+    truncated = field_value[:MAX_REGEX_INPUT]
+    if len(field_value) > MAX_REGEX_INPUT:
+        logger.warning("Regex input truncated from %d to %d chars", len(field_value), MAX_REGEX_INPUT)
     if isinstance(op_value, re.Pattern):
-        return bool(op_value.search(field_value))
-    return bool(re.search(op_value, field_value))
+        return bool(op_value.search(truncated))
+    return bool(re.search(op_value, truncated))
 
 
 def _op_matches_any(field_value: Any, op_value: list[str | re.Pattern]) -> bool:
     if not isinstance(field_value, str):
         raise TypeError
-    return any(p.search(field_value) if isinstance(p, re.Pattern) else re.search(p, field_value) for p in op_value)
+    truncated = field_value[:MAX_REGEX_INPUT]
+    if len(field_value) > MAX_REGEX_INPUT:
+        logger.warning("Regex input truncated from %d to %d chars", len(field_value), MAX_REGEX_INPUT)
+    return any(p.search(truncated) if isinstance(p, re.Pattern) else re.search(p, truncated) for p in op_value)
 
 
 def _op_gt(field_value: Any, op_value: float | int) -> bool:

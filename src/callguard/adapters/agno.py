@@ -114,6 +114,7 @@ class AgnoAdapter:
             tool_input=tool_input,
             run_id=self._session_id,
             call_index=self._call_index,
+            tool_use_id=call_id,
             environment=self._guard.environment,
             registry=self._guard.tool_registry,
             principal=self._principal,
@@ -145,6 +146,30 @@ class AgnoAdapter:
             span.end()
             self._pending.pop(call_id, None)
             return self._deny(decision.reason)
+
+        # Handle per-rule observed denials
+        if decision.observed:
+            for cr in decision.contracts_evaluated:
+                if cr.get("observed") and not cr.get("passed"):
+                    await self._guard.audit_sink.emit(
+                        AuditEvent(
+                            action=AuditAction.CALL_WOULD_DENY,
+                            run_id=envelope.run_id,
+                            call_id=envelope.call_id,
+                            call_index=envelope.call_index,
+                            tool_name=envelope.tool_name,
+                            tool_args=self._guard.redaction.redact_args(envelope.args),
+                            side_effect=envelope.side_effect.value,
+                            environment=envelope.environment,
+                            principal=asdict(envelope.principal) if envelope.principal else None,
+                            decision_source="precondition",
+                            decision_name=cr["name"],
+                            reason=cr["message"],
+                            mode="observe",
+                            policy_version=self._guard.policy_version,
+                            policy_error=decision.policy_error,
+                        )
+                    )
 
         # Handle allow
         await self._emit_audit_pre(envelope, decision)
@@ -190,6 +215,7 @@ class AgnoAdapter:
                 session_execution_count=await self._session.execution_count(),
                 mode=self._guard.mode,
                 policy_version=self._guard.policy_version,
+                policy_error=post_decision.policy_error,
             )
         )
 
@@ -224,6 +250,7 @@ class AgnoAdapter:
                 session_execution_count=await self._session.execution_count(),
                 mode=self._guard.mode,
                 policy_version=self._guard.policy_version,
+                policy_error=decision.policy_error,
             )
         )
 

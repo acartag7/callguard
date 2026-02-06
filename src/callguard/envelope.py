@@ -194,6 +194,18 @@ def create_envelope(
         except (TypeError, ValueError):
             safe_metadata = copy.deepcopy(kwargs.pop("metadata"))
 
+    # Deep-copy Principal to protect claims dict
+    if "principal" in kwargs and kwargs["principal"] is not None:
+        p = kwargs.pop("principal")
+        kwargs["principal"] = Principal(
+            user_id=p.user_id,
+            service_id=p.service_id,
+            org_id=p.org_id,
+            role=p.role,
+            ticket_ref=p.ticket_ref,
+            claims=copy.deepcopy(p.claims) if p.claims else {},
+        )
+
     # Classification
     registry = kwargs.pop("registry", None)
     side_effect = SideEffect.IRREVERSIBLE

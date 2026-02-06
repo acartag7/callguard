@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from dataclasses import asdict, dataclass, field
@@ -209,5 +210,9 @@ class FileAuditSink:
         data["action"] = event.action.value
         data = self._redaction.cap_payload(data)
         line = json.dumps(data, default=str) + "\n"
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._write_line, line)
+
+    def _write_line(self, line: str) -> None:
         with open(self._path, "a") as f:
             f.write(line)

@@ -1,9 +1,15 @@
-"""Shared base for HTTP audit sinks — retry, session reuse, timeout."""
+"""Shared base for HTTP audit sinks — retry, session reuse, timeout.
+
+Note: fire-and-forget mode may silently drop events after exhausting retries.
+Provide an ``on_failure`` callback for production use to detect audit gaps.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import aiohttp
 
@@ -20,6 +26,10 @@ class HTTPSinkBase:
     Subclasses call ``_send_with_retry(url, body, headers)`` in their
     ``emit()`` method.  The session is created lazily on first use and
     reused across calls.  Call ``close()`` to release the connection pool.
+
+    Args:
+        on_failure: Optional async callback invoked when all retries are
+            exhausted.  Receives ``(body_dict, last_exception)``.
     """
 
     def __init__(
@@ -28,11 +38,13 @@ class HTTPSinkBase:
         max_retries: int = _DEFAULT_MAX_RETRIES,
         base_delay: float = _DEFAULT_BASE_DELAY,
         timeout: aiohttp.ClientTimeout | None = None,
+        on_failure: Callable[[Any, Exception], Awaitable[None]] | None = None,
     ) -> None:
         self._max_retries = max_retries
         self._base_delay = base_delay
         self._timeout = timeout or _DEFAULT_TIMEOUT
         self._session: aiohttp.ClientSession | None = None
+        self._on_failure = on_failure
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -74,6 +86,11 @@ class HTTPSinkBase:
             self._max_retries,
             last_error,
         )
+        if self._on_failure and last_error is not None:
+            try:
+                await self._on_failure(body, last_error)
+            except Exception:
+                logger.exception("on_failure callback raised")
 
     async def close(self) -> None:
         """Close the underlying aiohttp session."""

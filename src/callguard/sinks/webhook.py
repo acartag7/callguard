@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from typing import Any
 
@@ -16,6 +17,9 @@ class WebhookAuditSink(HTTPSinkBase):
 
     Supports exponential backoff (1s, 2s, 4s) with up to 3 retries,
     optional RedactionPolicy, and fire-and-forget mode.
+
+    Note: fire-and-forget mode may silently drop events after exhausting
+    retries.  Provide ``on_failure`` for production use.
     """
 
     def __init__(
@@ -26,8 +30,9 @@ class WebhookAuditSink(HTTPSinkBase):
         redaction_policy: RedactionPolicy | None = None,
         max_retries: int = 3,
         base_delay: float = 1.0,
+        on_failure: Callable[[Any, Exception], Awaitable[None]] | None = None,
     ) -> None:
-        super().__init__(max_retries=max_retries, base_delay=base_delay)
+        super().__init__(max_retries=max_retries, base_delay=base_delay, on_failure=on_failure)
         self._url = url
         self._headers = {"Content-Type": "application/json", **(headers or {})}
         self._fire_and_forget = fire_and_forget

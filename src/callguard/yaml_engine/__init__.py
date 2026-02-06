@@ -5,11 +5,8 @@ Requires optional dependencies: ``pip install callguard[yaml]``
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from callguard.yaml_engine.compiler import CompiledBundle
-    from callguard.yaml_engine.loader import BundleHash
+from callguard.yaml_engine.compiler import CompiledBundle
+from callguard.yaml_engine.loader import BundleHash
 
 
 def load_bundle(source: str) -> tuple[dict, BundleHash]:

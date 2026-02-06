@@ -77,7 +77,8 @@ class OpenAIAgentsAdapter:
             except (json.JSONDecodeError, TypeError):
                 tool_arguments = {}
 
-            call_id = str(uuid.uuid4())
+            # Use tool_use_id from SDK context if available, else generate one
+            call_id = getattr(data.context, "tool_use_id", None) or str(uuid.uuid4())
             result = await adapter._pre(tool_name, tool_arguments, call_id)
             if result is not None:
                 return ToolGuardrailFunctionOutput.reject_content(result)
@@ -86,11 +87,12 @@ class OpenAIAgentsAdapter:
         @tool_output_guardrail
         async def callguard_output_guardrail(context, agent, data):
             tool_output = str(data.output) if data.output is not None else ""
-            # Correlate output to pending input via insertion-order (FIFO).
-            # next(iter(_pending)) grabs the oldest entry — correct for
-            # sequential execution but would need a proper correlation key
-            # (e.g. tool_use_id) if the SDK ever runs guardrails in parallel.
-            if adapter._pending:
+            # Try to correlate via tool_use_id from SDK context first.
+            # Fall back to FIFO (insertion-order) for sequential execution.
+            call_id = getattr(data, "tool_use_id", None)
+            if call_id and call_id in adapter._pending:
+                await adapter._post(call_id, tool_output)
+            elif adapter._pending:
                 call_id = next(iter(adapter._pending))
                 await adapter._post(call_id, tool_output)
             return ToolGuardrailFunctionOutput.allow()
@@ -140,6 +142,30 @@ class OpenAIAgentsAdapter:
             self._pending.pop(call_id, None)
             return f"DENIED: {decision.reason}"
 
+        # Handle per-rule observed denials
+        if decision.observed:
+            for cr in decision.contracts_evaluated:
+                if cr.get("observed") and not cr.get("passed"):
+                    await self._guard.audit_sink.emit(
+                        AuditEvent(
+                            action=AuditAction.CALL_WOULD_DENY,
+                            run_id=envelope.run_id,
+                            call_id=envelope.call_id,
+                            call_index=envelope.call_index,
+                            tool_name=envelope.tool_name,
+                            tool_args=self._guard.redaction.redact_args(envelope.args),
+                            side_effect=envelope.side_effect.value,
+                            environment=envelope.environment,
+                            principal=asdict(envelope.principal) if envelope.principal else None,
+                            decision_source="precondition",
+                            decision_name=cr["name"],
+                            reason=cr["message"],
+                            mode="observe",
+                            policy_version=self._guard.policy_version,
+                            policy_error=decision.policy_error,
+                        )
+                    )
+
         # Handle allow
         await self._emit_audit_pre(envelope, decision)
         span.set_attribute("governance.action", "allowed")
@@ -186,6 +212,7 @@ class OpenAIAgentsAdapter:
                 session_execution_count=await self._session.execution_count(),
                 mode=self._guard.mode,
                 policy_version=self._guard.policy_version,
+                policy_error=post_decision.policy_error,
             )
         )
 
@@ -218,12 +245,16 @@ class OpenAIAgentsAdapter:
                 session_execution_count=await self._session.execution_count(),
                 mode=self._guard.mode,
                 policy_version=self._guard.policy_version,
+                policy_error=decision.policy_error,
             )
         )
 
     def _check_tool_success(self, tool_response: Any) -> bool:
         if tool_response is None:
             return True
+        if isinstance(tool_response, dict):
+            if tool_response.get("is_error"):
+                return False
         if isinstance(tool_response, str):
             if tool_response.startswith("Error:") or tool_response.startswith("fatal:"):
                 return False

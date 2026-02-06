@@ -144,6 +144,7 @@ def _compile_pre(contract: dict, mode: str) -> Any:
     precondition_fn._callguard_when = None  # filtering done inside
     precondition_fn._callguard_mode = mode
     precondition_fn._callguard_id = contract_id
+    precondition_fn._callguard_source = "yaml_precondition"
 
     return precondition_fn
 
@@ -188,6 +189,7 @@ def _compile_post(contract: dict, mode: str) -> Any:
     postcondition_fn._callguard_when = None
     postcondition_fn._callguard_mode = mode
     postcondition_fn._callguard_id = contract_id
+    postcondition_fn._callguard_source = "yaml_postcondition"
 
     return postcondition_fn
 
@@ -208,7 +210,7 @@ def _compile_session(contract: dict, mode: str, limits: OperationLimits) -> Any:
             if exec_count >= limits.max_tool_calls:
                 return Verdict.fail(message_template, tags=tags, **then_metadata)
             attempt_count = await session.attempt_count()
-            if limits.max_attempts < OperationLimits().max_attempts and attempt_count >= limits.max_attempts:
+            if attempt_count >= limits.max_attempts:
                 return Verdict.fail(message_template, tags=tags, **then_metadata)
         return Verdict.pass_()
 
@@ -219,6 +221,7 @@ def _compile_session(contract: dict, mode: str, limits: OperationLimits) -> Any:
     session_contract_fn._callguard_message = message_template
     session_contract_fn._callguard_tags = tags
     session_contract_fn._callguard_then_metadata = then_metadata
+    session_contract_fn._callguard_source = "yaml_session"
 
     return session_contract_fn
 
@@ -262,8 +265,12 @@ def _expand_message(
     """Expand {placeholder} tokens in a message template.
 
     Missing placeholders are kept as-is. Each expansion is capped at 200 chars.
+    Values that look like secrets are redacted.
     """
+    from callguard.audit import RedactionPolicy
     from callguard.yaml_engine.evaluator import _MISSING, _resolve_selector
+
+    _redaction = RedactionPolicy()
 
     def replacer(match: re.Match) -> str:
         selector = match.group(1)
@@ -271,6 +278,8 @@ def _expand_message(
         if value is _MISSING or value is None:
             return match.group(0)  # Keep placeholder as-is
         text = str(value)
+        if _redaction._looks_like_secret(text):
+            text = "[REDACTED]"
         if len(text) > _PLACEHOLDER_CAP:
             text = text[: _PLACEHOLDER_CAP - 3] + "..."
         return text

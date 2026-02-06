@@ -14,8 +14,10 @@ try:
     import yaml
 except ImportError as _exc:
     raise ImportError(
-        "The YAML engine requires pyyaml and jsonschema. " "Install them with: pip install callguard[yaml]"
+        "The YAML engine requires pyyaml and jsonschema. Install them with: pip install callguard[yaml]"
     ) from _exc
+
+MAX_BUNDLE_SIZE = 1_048_576  # 1 MB
 
 # Lazy-loaded schema singleton
 _schema_cache: dict | None = None
@@ -111,6 +113,34 @@ def _validate_expression_regexes(expr: dict | Any) -> None:
                 _try_compile_regex(pattern)
 
 
+def _validate_pre_selectors(data: dict) -> None:
+    """Reject output.text selectors in type: pre contracts (spec violation)."""
+    from callguard import CallGuardConfigError
+
+    for contract in data.get("contracts", []):
+        if contract.get("type") != "pre":
+            continue
+        when = contract.get("when")
+        if when and _expression_has_selector(when, "output.text"):
+            raise CallGuardConfigError(
+                f"Contract '{contract.get('id', '?')}': output.text selector is not available in type: pre contracts"
+            )
+
+
+def _expression_has_selector(expr: dict | Any, target: str) -> bool:
+    """Check if an expression tree contains a specific selector."""
+    if not isinstance(expr, dict):
+        return False
+    if "all" in expr:
+        return any(_expression_has_selector(sub, target) for sub in expr["all"])
+    if "any" in expr:
+        return any(_expression_has_selector(sub, target) for sub in expr["any"])
+    if "not" in expr:
+        return _expression_has_selector(expr["not"], target)
+    # Leaf node: check selector keys
+    return target in expr
+
+
 def _try_compile_regex(pattern: str) -> None:
     """Attempt to compile a regex pattern, raising CallGuardConfigError on failure."""
     from callguard import CallGuardConfigError
@@ -138,6 +168,11 @@ def load_bundle(source: str | Path) -> tuple[dict, BundleHash]:
     from callguard import CallGuardConfigError
 
     path = Path(source)
+
+    file_size = path.stat().st_size
+    if file_size > MAX_BUNDLE_SIZE:
+        raise CallGuardConfigError(f"Bundle file too large ({file_size} bytes, max {MAX_BUNDLE_SIZE})")
+
     raw_bytes = path.read_bytes()
     bundle_hash = _compute_hash(raw_bytes)
 
@@ -152,5 +187,6 @@ def load_bundle(source: str | Path) -> tuple[dict, BundleHash]:
     _validate_schema(data)
     _validate_unique_ids(data)
     _validate_regexes(data)
+    _validate_pre_selectors(data)
 
     return data, bundle_hash

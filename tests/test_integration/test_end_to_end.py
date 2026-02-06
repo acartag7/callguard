@@ -296,7 +296,7 @@ class TestYAMLToPipelineBasic:
         event = sink.last()
         assert event.action == AuditAction.CALL_DENIED
         assert event.decision_name == "block-sensitive-reads"
-        assert event.decision_source == "precondition"
+        assert event.decision_source == "yaml_precondition"
 
     @pytest.mark.asyncio
     async def test_safe_read_allowed(self, guard):
@@ -608,7 +608,8 @@ class TestSessionLimitsIntegration:
         # Use 2 calls on guard1
         for _ in range(2):
             await guard1.run(
-                "any_tool", {"x": 1},
+                "any_tool",
+                {"x": 1},
                 tool_callable=lambda **kw: "ok",
                 environment="dev",
             )
@@ -616,7 +617,8 @@ class TestSessionLimitsIntegration:
         # guard2 should still have its full budget
         for _ in range(3):
             await guard2.run(
-                "any_tool", {"x": 1},
+                "any_tool",
+                {"x": 1},
                 tool_callable=lambda **kw: "ok",
                 environment="dev",
             )
@@ -624,7 +626,8 @@ class TestSessionLimitsIntegration:
         # guard2 hits limit on 4th
         with pytest.raises(CallGuardDenied):
             await guard2.run(
-                "any_tool", {"x": 1},
+                "any_tool",
+                {"x": 1},
                 tool_callable=lambda **kw: "ok",
                 environment="dev",
             )
@@ -697,7 +700,6 @@ class TestObserveModeIntegration:
 
 
 class TestDisabledRulesIntegration:
-
     @pytest.mark.asyncio
     async def test_disabled_rule_does_not_fire(self):
         path = write_yaml(DISABLED_RULE_YAML)
@@ -798,8 +800,7 @@ class TestAuditIntegrity:
                 tool_callable=lambda **kw: "",
             )
         event = sink.last()
-        assert event.decision_source == "precondition", \
-            f"Expected 'precondition', got: {event.decision_source}"
+        assert event.decision_source == "yaml_precondition", f"Expected 'precondition', got: {event.decision_source}"
 
     @pytest.mark.asyncio
     async def test_principal_in_audit_event(self, setup):
@@ -853,7 +854,6 @@ class TestAuditIntegrity:
 
 
 class TestEdgeCases:
-
     @pytest.mark.asyncio
     async def test_nested_args_evaluation(self):
         """args.config.timeout should resolve nested dict access."""
@@ -1165,7 +1165,7 @@ class TestFullLifecycle:
         deny_event = denied[0]
         assert deny_event.policy_version == bundle_hash
         assert deny_event.decision_name == "block-sensitive-reads"
-        assert deny_event.decision_source == "precondition"
+        assert deny_event.decision_source == "yaml_precondition"
 
         # 7. Run tool with PII in output
         sink.clear()

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import re
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from typing import Any
 
 from callguard.audit import AuditEvent, RedactionPolicy
 from callguard.sinks._base import HTTPSinkBase
+
+_VALID_SITE_RE = re.compile(r"^[a-z0-9][a-z0-9.\-]*[a-z0-9]$")
 
 
 class DatadogSink(HTTPSinkBase):
@@ -26,8 +30,11 @@ class DatadogSink(HTTPSinkBase):
         redaction_policy: RedactionPolicy | None = None,
         max_retries: int = 3,
         base_delay: float = 1.0,
+        on_failure: Callable[[Any, Exception], Awaitable[None]] | None = None,
     ) -> None:
-        super().__init__(max_retries=max_retries, base_delay=base_delay)
+        super().__init__(max_retries=max_retries, base_delay=base_delay, on_failure=on_failure)
+        if not _VALID_SITE_RE.match(site):
+            raise ValueError(f"Invalid Datadog site: {site!r}")
         self._api_key = api_key
         self._site = site
         self._service = service

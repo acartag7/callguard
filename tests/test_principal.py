@@ -151,7 +151,7 @@ class TestEnvelopePropagation:
             {"key": "value"},
             principal=principal,
         )
-        assert envelope.principal is principal
+        assert envelope.principal == principal  # deep-copied, not identity
         assert envelope.principal.role == "sre"
         assert envelope.principal.ticket_ref == "JIRA-1234"
         assert envelope.principal.claims == {"department": "platform"}
