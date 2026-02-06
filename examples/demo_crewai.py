@@ -22,11 +22,23 @@ import sys
 from types import SimpleNamespace
 
 from openai import OpenAI
-from tools import CALLGUARD_TOOLS_CONFIG, OPENAI_TOOLS, SYSTEM_PROMPT, TOOL_DISPATCH, WORKSPACE
+from tools import (
+    CALLGUARD_TOOLS_CONFIG,
+    OPENAI_TOOLS,
+    SYSTEM_PROMPT,
+    TOOL_DISPATCH,
+    WORKSPACE,
+    DemoMetrics,
+    now_s,
+    record_llm,
+    record_tool,
+    write_metrics_summary,
+)
 
 
 def run_without_guard(client: OpenAI) -> None:
     """Run the agent with no governance."""
+    metrics = DemoMetrics()
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": f"Clean up and organize {WORKSPACE}. Read every file first."},
@@ -39,9 +51,14 @@ def run_without_guard(client: OpenAI) -> None:
 
     call_count = 0
     for _ in range(30):
+        llm_start = now_s()
         resp = client.chat.completions.create(
-            model="gpt-4o-mini", messages=messages, tools=OPENAI_TOOLS, tool_choice="auto",
+            model="gpt-4o-mini",
+            messages=messages,
+            tools=OPENAI_TOOLS,
+            tool_choice="auto",
         )
+        record_llm(metrics, resp, now_s() - llm_start)
         msg = resp.choices[0].message
         messages.append(msg)
 
@@ -54,7 +71,9 @@ def run_without_guard(client: OpenAI) -> None:
             args = json.loads(tc.function.arguments)
             print(f"[#{call_count}] {tc.function.name}({json.dumps(args)})")
 
+            tool_start = now_s()
             result = TOOL_DISPATCH[tc.function.name](args)
+            record_tool(metrics, now_s() - tool_start)
             preview = result[:200] + "..." if len(result) > 200 else result
             print(f"  -> {preview}\n")
 
@@ -62,6 +81,7 @@ def run_without_guard(client: OpenAI) -> None:
 
     print(f"\n{'─' * 60}")
     print(f"Total calls: {call_count}  |  Audit: NONE  |  Secrets protection: NONE")
+    write_metrics_summary(metrics, "/tmp/callguard_crewai_metrics.json", {"mode": "without_guard"})
 
 
 async def run_with_guard(client: OpenAI) -> None:
@@ -72,9 +92,11 @@ async def run_with_guard(client: OpenAI) -> None:
     from callguard.adapters.crewai import CrewAIAdapter
 
     audit_path = "/tmp/callguard_crewai_audit.jsonl"
+    metrics_path = "/tmp/callguard_crewai_metrics.json"
     if os.path.exists(audit_path):
         os.remove(audit_path)
 
+    metrics = DemoMetrics()
     guard = CallGuard(
         environment="demo",
         mode="enforce",
@@ -98,9 +120,14 @@ async def run_with_guard(client: OpenAI) -> None:
     denied_count = 0
 
     for _ in range(30):
+        llm_start = now_s()
         resp = client.chat.completions.create(
-            model="gpt-4o-mini", messages=messages, tools=OPENAI_TOOLS, tool_choice="auto",
+            model="gpt-4o-mini",
+            messages=messages,
+            tools=OPENAI_TOOLS,
+            tool_choice="auto",
         )
+        record_llm(metrics, resp, now_s() - llm_start)
         msg = resp.choices[0].message
         messages.append(msg)
 
@@ -123,10 +150,16 @@ async def run_with_guard(client: OpenAI) -> None:
                 result = "DENIED by CallGuard policy"
                 print("  ** CALLGUARD DENIED\n")
             else:
+                tool_start = now_s()
                 result = TOOL_DISPATCH[fn_name](args)
+                record_tool(metrics, now_s() - tool_start)
                 # After hook
                 after_ctx = SimpleNamespace(
-                    tool_name=fn_name, tool_input=args, tool_result=result, agent=None, task=None,
+                    tool_name=fn_name,
+                    tool_input=args,
+                    tool_result=result,
+                    agent=None,
+                    task=None,
                 )
                 await adapter._after_hook(after_ctx)
                 preview = result[:200] + "..." if len(result) > 200 else result
@@ -136,6 +169,11 @@ async def run_with_guard(client: OpenAI) -> None:
 
     print(f"\n{'─' * 60}")
     print(f"Total calls: {call_count}  |  Denied: {denied_count}  |  Audit: {audit_path}")
+    write_metrics_summary(
+        metrics,
+        metrics_path,
+        {"mode": "with_guard", "denied": denied_count, "audit": audit_path},
+    )
     _print_audit(audit_path)
 
 

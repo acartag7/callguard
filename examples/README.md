@@ -64,6 +64,29 @@ Each demo follows the same pattern:
 | `contracts.py` | CallGuard contracts: block sensitive reads, destructive commands, enforce move targets, session limits |
 | `otel_config.py` | Optional OpenTelemetry configuration |
 
+## Metrics (Tokens + Timing)
+
+Each demo records usage and performance metrics, written to `/tmp/callguard_<demo>_metrics.json` and printed at the end.
+
+Sample run (Feb 2026):
+
+| Demo | Mode | Calls | Denied | Tokens | LLM Time |
+|------|------|------:|-------:|-------:|---------:|
+| LangChain | no guard | 17 | 0 | 2,782 | 14.1s |
+| LangChain | **guard** | 17 | **4** | 2,819 | 13.1s |
+| CrewAI | no guard | 17 | 0 | 2,768 | 11.0s |
+| CrewAI | **guard** | 17 | **4** | 2,649 | 22.3s |
+| Agno | no guard | 17 | 0 | 2,858 | 11.6s |
+| Agno | **guard** | 17 | **4** | 2,818 | 12.6s |
+| Semantic Kernel | no guard | 17 | 0 | 2,855 | 12.3s |
+| Semantic Kernel | **guard** | 17 | **4** | 2,767 | 12.8s |
+| OpenAI Agents | no guard | 17 | 0 | 2,655 | 12.7s |
+| OpenAI Agents | **guard** | 17 | **4** | 2,821 | 12.7s |
+| Claude SDK | no guard | 20 | 0 | 55,703 | 42.9s |
+| Claude SDK | **guard** | 21 | **6** | 52,868 | 37.5s |
+
+GPT-4o-mini demos average ~2,800 tokens per run. Claude Haiku 4.5 (via OpenRouter) uses more tokens due to verbose tool-use patterns.
+
 ## What the Contracts Enforce
 
 1. **block_sensitive_reads** — Denies `read_file` on `.env`, `.secret`, `credentials`, `id_rsa`, `.pem`, `.key`
