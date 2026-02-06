@@ -194,12 +194,34 @@ class CallGuard:
         # Pre-execute
         pre = await pipeline.pre_execute(envelope, session)
 
-        if pre.action == "deny" and self.mode == "enforce":
-            raise CallGuardDenied(
-                reason=pre.reason,
-                decision_source=pre.decision_source,
-                decision_name=pre.decision_name,
+        if pre.action == "deny":
+            # Emit audit for both modes
+            audit_action = AuditAction.CALL_WOULD_DENY if self.mode == "observe" else AuditAction.CALL_DENIED
+            await self.audit_sink.emit(
+                AuditEvent(
+                    action=audit_action,
+                    run_id=envelope.run_id,
+                    call_id=envelope.call_id,
+                    tool_name=envelope.tool_name,
+                    tool_args=self.redaction.redact_args(envelope.args),
+                    side_effect=envelope.side_effect.value,
+                    environment=envelope.environment,
+                    decision_source=pre.decision_source,
+                    decision_name=pre.decision_name,
+                    reason=pre.reason,
+                    hooks_evaluated=pre.hooks_evaluated,
+                    contracts_evaluated=pre.contracts_evaluated,
+                    session_attempt_count=await session.attempt_count(),
+                    session_execution_count=await session.execution_count(),
+                    mode=self.mode,
+                )
             )
+            if self.mode == "enforce":
+                raise CallGuardDenied(
+                    reason=pre.reason,
+                    decision_source=pre.decision_source,
+                    decision_name=pre.decision_name,
+                )
 
         # Execute tool
         try:

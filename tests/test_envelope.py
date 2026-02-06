@@ -62,6 +62,14 @@ class TestCreateEnvelope:
         envelope = create_envelope("Write", {"file_path": "/tmp/out.txt"})
         assert envelope.file_path == "/tmp/out.txt"
 
+    def test_camel_case_file_path(self):
+        envelope = create_envelope("Read", {"filePath": "/tmp/test.txt"})
+        assert envelope.file_path == "/tmp/test.txt"
+
+    def test_camel_case_write_file_path(self):
+        envelope = create_envelope("Edit", {"filePath": "/app/.env"})
+        assert envelope.file_path == "/app/.env"
+
     def test_glob_path_extraction(self):
         envelope = create_envelope("Glob", {"path": "/src"})
         assert envelope.file_path == "/src"

@@ -58,7 +58,7 @@ class GovernancePipeline:
 
         # 1. Attempt limit
         attempt_count = await session.attempt_count()
-        if attempt_count > self._guard.limits.max_attempts:
+        if attempt_count >= self._guard.limits.max_attempts:
             return PreDecision(
                 action="deny",
                 reason=f"Attempt limit reached ({self._guard.limits.max_attempts}). "

@@ -1,16 +1,9 @@
-"""Shared types, enums, and protocols for CallGuard."""
+"""Shared types for CallGuard internals."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable
-
-
-@runtime_checkable
-class AuditSink(Protocol):
-    """Protocol for audit event consumers."""
-
-    async def emit(self, event: Any) -> None: ...
+from typing import Any
 
 
 @dataclass

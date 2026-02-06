@@ -6,7 +6,7 @@ import json
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -18,7 +18,7 @@ class AuditSink(Protocol):
     async def emit(self, event: Any) -> None: ...
 
 
-class AuditAction(str, Enum):
+class AuditAction(StrEnum):
     CALL_DENIED = "call_denied"
     CALL_WOULD_DENY = "call_would_deny"
     CALL_ALLOWED = "call_allowed"

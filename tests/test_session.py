@@ -56,6 +56,16 @@ class TestSession:
         await session.record_execution("Bash", success=True)
         assert await session.consecutive_failures() == 0
 
+    async def test_consecutive_failures_reset_then_fail(self, session):
+        """Regression: fail-fail-success-fail must return 1, not stale 0."""
+        await session.record_execution("Bash", success=False)
+        await session.record_execution("Bash", success=False)
+        assert await session.consecutive_failures() == 2
+        await session.record_execution("Bash", success=True)
+        assert await session.consecutive_failures() == 0
+        await session.record_execution("Bash", success=False)
+        assert await session.consecutive_failures() == 1
+
     async def test_session_id_property(self, session):
         assert session.session_id == "test-sess"
 

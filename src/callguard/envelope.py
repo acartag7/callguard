@@ -7,13 +7,13 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from callguard.types import ToolConfig
 
 
-class SideEffect(str, Enum):
+class SideEffect(StrEnum):
     """Classification of tool side effects.
 
     Determines postcondition behavior and retry safety.
@@ -196,14 +196,15 @@ def create_envelope(
     if registry:
         side_effect, idempotent = registry.classify(tool_name, safe_args)
 
-    # Extract convenience fields
+    # Extract convenience fields (handle both snake_case and camelCase keys)
     if tool_name == "Bash":
         bash_command = safe_args.get("command", "")
+        # BashClassifier always wins over registry for Bash tools
         side_effect = BashClassifier.classify(bash_command)
     elif tool_name in ("Read", "Glob", "Grep"):
-        file_path = safe_args.get("file_path") or safe_args.get("path")
+        file_path = safe_args.get("file_path") or safe_args.get("filePath") or safe_args.get("path")
     elif tool_name in ("Write", "Edit"):
-        file_path = safe_args.get("file_path") or safe_args.get("path")
+        file_path = safe_args.get("file_path") or safe_args.get("filePath") or safe_args.get("path")
 
     return ToolEnvelope(
         tool_name=tool_name,

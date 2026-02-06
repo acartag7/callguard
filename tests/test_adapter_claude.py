@@ -203,12 +203,30 @@ class TestCallGuardRun:
         with pytest.raises(CallGuardToolError):
             await guard.run("TestTool", {}, failing_tool)
 
+    async def test_run_deny_emits_audit(self):
+        @precondition("*")
+        def always_deny(envelope):
+            return Verdict.fail("denied")
+
+        sink = NullAuditSink()
+        guard = make_guard(contracts=[always_deny], audit_sink=sink)
+
+        async def my_tool(**kwargs):
+            return "ok"
+
+        from callguard import CallGuardDenied
+
+        with pytest.raises(CallGuardDenied):
+            await guard.run("TestTool", {}, my_tool)
+        assert any(e.action == AuditAction.CALL_DENIED for e in sink.events)
+
     async def test_run_observe_mode_no_raise(self):
         @precondition("*")
         def always_deny(envelope):
             return Verdict.fail("would deny")
 
-        guard = make_guard(mode="observe", contracts=[always_deny])
+        sink = NullAuditSink()
+        guard = make_guard(mode="observe", contracts=[always_deny], audit_sink=sink)
 
         async def my_tool(**kwargs):
             return "ok"
@@ -216,3 +234,5 @@ class TestCallGuardRun:
         # Should not raise even though precondition fails
         result = await guard.run("TestTool", {}, my_tool)
         assert result == "ok"
+        # Should emit CALL_WOULD_DENY audit
+        assert any(e.action == AuditAction.CALL_WOULD_DENY for e in sink.events)

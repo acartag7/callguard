@@ -51,8 +51,7 @@ class TestPreExecute:
         pipeline = GovernancePipeline(guard)
         envelope = create_envelope("TestTool", {})
 
-        # Simulate 3 attempts (> max_attempts=2)
-        await session.increment_attempts()
+        # Simulate 2 attempts (>= max_attempts=2)
         await session.increment_attempts()
         await session.increment_attempts()
 

@@ -38,7 +38,7 @@ class Session:
         await self._backend.increment(f"s:{self._sid}:tool:{tool_name}")
 
         if success:
-            await self._backend.set(f"s:{self._sid}:consec_fail", "0")
+            await self._backend.delete(f"s:{self._sid}:consec_fail")
         else:
             await self._backend.increment(f"s:{self._sid}:consec_fail")
 
