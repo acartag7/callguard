@@ -8,5 +8,6 @@ build/
 .pytest_cache/
 *.egg
 
-# Local config
+# Claude Code (personal config)
 CLAUDE.local
+.claude/
