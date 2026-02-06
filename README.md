@@ -124,7 +124,7 @@ Every tool call is wrapped in a **ToolEnvelope** -- a frozen, deep-copied snapsh
 
 **Contracts** define governance rules. A `@precondition` runs before execution and can deny the call. A `@postcondition` runs after and emits warnings (observe-only -- they emit warnings but never block). A `@session_contract` checks cross-turn state like total execution counts. All return a `Verdict`: either `Verdict.pass_()` or `Verdict.fail("actionable message")`.
 
-**Hooks** are lower-level interception points. A before-hook receives the envelope and returns `HookDecision.allow()` or `HookDecision.deny("reason")`. After-hooks observe the result. Hooks run before contracts in the pipeline.
+**Hooks** are lower-level interception points. A before-hook receives the envelope and returns `HookDecision.allow()` or `HookDecision.deny("reason")`. After-hooks observe the result. Hooks run before contracts in the pipeline. Use contracts for most policy; use hooks when you need framework-specific interception or custom envelope shaping.
 
 The **GovernancePipeline** evaluates five steps in order: attempt limit, before-hooks, preconditions, session contracts, execution limits. First denial wins. If everything passes, the tool executes, then postconditions and after-hooks run.
 
