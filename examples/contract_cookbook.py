@@ -94,6 +94,10 @@ def allowlist_read_only_commands(envelope):
     WHY: In a research/analysis agent, the agent should observe
     the filesystem but never modify it. Easier to enumerate what's
     safe than what's dangerous.
+
+    NOTE: Pipes and shell operators are universally denied, so common
+    read-only pipelines like ``rg pattern | head -20`` are intentionally
+    blocked. Each command must be invoked individually.
     """
     cmd = (envelope.args.get("command") or "").strip()
     allowed_prefixes = [
@@ -928,6 +932,40 @@ def devops_agent_contracts():
         }),
         make_failure_escalation(3),
     ]
+
+
+# ════════════════════════════════════════════════════════════════════
+#  PART 5: TRADEOFFS & LIMITATIONS
+# ════════════════════════════════════════════════════════════════════
+#
+#  Preconditions vs Postconditions
+#  ─────────────────────────────────
+#  Prefer preconditions whenever you can decide from the tool name +
+#  arguments alone. Denial is free — the tool never executes. Use
+#  postconditions only when you need the tool's actual output to
+#  judge safety (e.g., PII detection, secrets leak scanning). Since
+#  postconditions run after execution, they can only warn — they
+#  cannot undo the action.
+#
+#  Cost of Global Contracts
+#  ─────────────────────────
+#  Wildcard contracts like ``no_prompt_injection_in_args`` (targeting
+#  ``"*"``) run on every tool call. The pattern-matching heuristic
+#  can produce false positives — benign content that happens to
+#  contain phrases like "ignore previous instructions" will be
+#  blocked. Scope global contracts narrowly or use ``when=`` guards
+#  to limit which envelopes they inspect.
+#
+#  Session Contract Limitations
+#  ─────────────────────────────
+#  Session contracts receive only the Session object — they have no
+#  access to the current ToolEnvelope. They can query cumulative
+#  counters (attempt_count, execution_count, tool_execution_count,
+#  consecutive_failures) but cannot inspect the current tool name or
+#  arguments. If you need both session state and envelope data, use
+#  a precondition that reads from shared state (see WorkflowGate in
+#  Part 3) or combine a precondition with a session contract.
+# ════════════════════════════════════════════════════════════════════
 
 
 # ════════════════════════════════════════════════════════════════════

@@ -146,6 +146,9 @@ async def run_with_guard(client: OpenAI) -> None:
             hook_result = await adapter._before_hook(before_ctx)
 
             if hook_result is False:
+                # The specific denial reason is logged to the audit trail,
+                # but CrewAI's before-hook protocol only accepts bool | None,
+                # so we can't propagate the reason back to the agent here.
                 denied_count += 1
                 result = "DENIED by CallGuard policy"
                 print("  ** CALLGUARD DENIED\n")
