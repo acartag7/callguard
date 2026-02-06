@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import uuid
 from collections.abc import Callable
+from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from callguard.audit import (
@@ -35,6 +37,7 @@ from callguard.types import HookRegistration
 
 __all__ = [
     "CallGuard",
+    "CallGuardConfigError",
     "CallGuardDenied",
     "CallGuardToolError",
     "SideEffect",
@@ -87,6 +90,7 @@ class CallGuard:
         audit_sink: AuditSink | None = None,
         redaction: RedactionPolicy | None = None,
         backend: StorageBackend | None = None,
+        policy_version: str | None = None,
     ):
         self.environment = environment
         self.mode = mode
@@ -95,6 +99,7 @@ class CallGuard:
         self.redaction = redaction or RedactionPolicy()
         self.audit_sink = audit_sink or StdoutAuditSink(self.redaction)
         self.telemetry = GovernanceTelemetry()
+        self.policy_version = policy_version
 
         # Build tool registry
         self.tool_registry = ToolRegistry()
@@ -113,10 +118,98 @@ class CallGuard:
         self._before_hooks: list[HookRegistration] = []
         self._after_hooks: list[HookRegistration] = []
 
+        # Persistent session for accumulating limits across run() calls
+        self._session_id = str(uuid.uuid4())
+
         for item in contracts or []:
             self._register_contract(item)
         for item in hooks or []:
             self._register_hook(item)
+
+    @classmethod
+    def from_yaml(
+        cls,
+        path: str | Path,
+        *,
+        mode: str | None = None,
+        audit_sink: AuditSink | None = None,
+        redaction: RedactionPolicy | None = None,
+        backend: StorageBackend | None = None,
+        environment: str = "production",
+    ) -> CallGuard:
+        """Create a CallGuard instance from a YAML contract bundle.
+
+        Args:
+            path: Path to a YAML contract file.
+            mode: Override the bundle's default mode (enforce/observe).
+            audit_sink: Custom audit sink.
+            redaction: Custom redaction policy.
+            backend: Custom storage backend.
+            environment: Environment name for envelope context.
+
+        Returns:
+            Configured CallGuard instance.
+
+        Raises:
+            CallGuardConfigError: If the YAML is invalid.
+        """
+        from callguard.yaml_engine.compiler import compile_contracts
+        from callguard.yaml_engine.loader import load_bundle
+
+        bundle_data, bundle_hash = load_bundle(path)
+        compiled = compile_contracts(bundle_data)
+
+        effective_mode = mode or compiled.default_mode
+        all_contracts = compiled.preconditions + compiled.postconditions + compiled.session_contracts
+
+        return cls(
+            environment=environment,
+            mode=effective_mode,
+            limits=compiled.limits,
+            contracts=all_contracts,
+            audit_sink=audit_sink,
+            redaction=redaction,
+            backend=backend,
+            policy_version=str(bundle_hash),
+        )
+
+    @classmethod
+    def from_template(
+        cls,
+        name: str,
+        *,
+        mode: str | None = None,
+        audit_sink: AuditSink | None = None,
+        redaction: RedactionPolicy | None = None,
+        backend: StorageBackend | None = None,
+        environment: str = "production",
+    ) -> CallGuard:
+        """Create a CallGuard instance from a built-in template.
+
+        Args:
+            name: Template name (e.g., "file-agent", "research-agent", "devops-agent").
+
+        Returns:
+            Configured CallGuard instance.
+
+        Raises:
+            CallGuardConfigError: If the template does not exist.
+        """
+        templates_dir = Path(__file__).parent / "yaml_engine" / "templates"
+        template_path = templates_dir / f"{name}.yaml"
+        if not template_path.exists():
+            raise CallGuardConfigError(
+                f"Template '{name}' not found. "
+                f"Available: {', '.join(p.stem for p in templates_dir.glob('*.yaml'))}"
+            )
+        return cls.from_yaml(
+            template_path,
+            mode=mode,
+            audit_sink=audit_sink,
+            redaction=redaction,
+            backend=backend,
+            environment=environment,
+        )
 
     def _register_contract(self, item: Any) -> None:
         contract_type = getattr(item, "_callguard_type", None)
@@ -175,15 +268,18 @@ class CallGuard:
         **envelope_kwargs,
     ) -> Any:
         """Framework-agnostic entrypoint."""
-        session_id = session_id or str(uuid.uuid4())
+        session_id = session_id or self._session_id
         session = Session(session_id, self.backend)
         pipeline = GovernancePipeline(self)
+
+        # Allow per-call environment override; fall back to guard-level default
+        env = envelope_kwargs.pop("environment", self.environment)
 
         envelope = create_envelope(
             tool_name=tool_name,
             tool_input=args,
             run_id=session_id,
-            environment=self.environment,
+            environment=env,
             registry=self.tool_registry,
             **envelope_kwargs,
         )
@@ -193,6 +289,8 @@ class CallGuard:
 
         # Start OTel span
         span = self.telemetry.start_tool_span(envelope)
+        if self.policy_version:
+            span.set_attribute("callguard.policy_version", self.policy_version)
 
         # Pre-execute
         pre = await pipeline.pre_execute(envelope, session)
@@ -214,6 +312,26 @@ class CallGuard:
             span.set_attribute("governance.action", "would_deny")
             span.set_attribute("governance.would_deny_reason", pre.reason or "")
         else:
+            # Emit CALL_WOULD_DENY for any per-rule observed denials
+            for cr in pre.contracts_evaluated:
+                if cr.get("observed") and not cr.get("passed"):
+                    await self.audit_sink.emit(
+                        AuditEvent(
+                            action=AuditAction.CALL_WOULD_DENY,
+                            run_id=envelope.run_id,
+                            call_id=envelope.call_id,
+                            tool_name=envelope.tool_name,
+                            tool_args=self.redaction.redact_args(envelope.args),
+                            side_effect=envelope.side_effect.value,
+                            environment=envelope.environment,
+                            principal=asdict(envelope.principal) if envelope.principal else None,
+                            decision_source="precondition",
+                            decision_name=cr["name"],
+                            reason=cr["message"],
+                            mode="observe",
+                            policy_version=self.policy_version,
+                        )
+                    )
             await self._emit_run_pre_audit(envelope, session, AuditAction.CALL_ALLOWED, pre)
             self.telemetry.record_allowed(envelope)
             span.set_attribute("governance.action", "allowed")
@@ -243,12 +361,14 @@ class CallGuard:
                 tool_args=self.redaction.redact_args(envelope.args),
                 side_effect=envelope.side_effect.value,
                 environment=envelope.environment,
+                principal=asdict(envelope.principal) if envelope.principal else None,
                 tool_success=tool_success,
                 postconditions_passed=post.postconditions_passed,
                 contracts_evaluated=post.contracts_evaluated,
                 session_attempt_count=await session.attempt_count(),
                 session_execution_count=await session.execution_count(),
                 mode=self.mode,
+                policy_version=self.policy_version,
             )
         )
 
@@ -273,6 +393,7 @@ class CallGuard:
                 tool_args=self.redaction.redact_args(envelope.args),
                 side_effect=envelope.side_effect.value,
                 environment=envelope.environment,
+                principal=asdict(envelope.principal) if envelope.principal else None,
                 decision_source=pre.decision_source,
                 decision_name=pre.decision_name,
                 reason=pre.reason,
@@ -281,6 +402,7 @@ class CallGuard:
                 session_attempt_count=await session.attempt_count(),
                 session_execution_count=await session.execution_count(),
                 mode=self.mode,
+                policy_version=self.policy_version,
             )
         )
 
@@ -293,6 +415,12 @@ class CallGuardDenied(Exception):  # noqa: N818
         self.decision_source = decision_source
         self.decision_name = decision_name
         super().__init__(reason)
+
+
+class CallGuardConfigError(Exception):
+    """Raised for configuration/load-time errors (invalid YAML, schema failures, etc.)."""
+
+    pass
 
 
 class CallGuardToolError(Exception):

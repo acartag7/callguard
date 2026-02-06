@@ -100,15 +100,23 @@ class GovernancePipeline:
             if asyncio.iscoroutine(verdict):
                 verdict = await verdict
 
+            contract_mode = getattr(contract, "_callguard_mode", None)
             contract_record = {
                 "name": getattr(contract, "__name__", "anonymous"),
                 "type": "precondition",
                 "passed": verdict.passed,
                 "message": verdict.message,
             }
+            if verdict.metadata:
+                contract_record["metadata"] = verdict.metadata
             contracts_evaluated.append(contract_record)
 
             if not verdict.passed:
+                # Per-rule observe mode: record but don't deny
+                if contract_mode == "observe":
+                    contract_record["observed"] = True
+                    continue
+
                 return PreDecision(
                     action="deny",
                     reason=verdict.message,
@@ -130,6 +138,8 @@ class GovernancePipeline:
                 "passed": verdict.passed,
                 "message": verdict.message,
             }
+            if verdict.metadata:
+                contract_record["metadata"] = verdict.metadata
             contracts_evaluated.append(contract_record)
 
             if not verdict.passed:
@@ -199,6 +209,8 @@ class GovernancePipeline:
                 "passed": verdict.passed,
                 "message": verdict.message,
             }
+            if verdict.metadata:
+                contract_record["metadata"] = verdict.metadata
             contracts_evaluated.append(contract_record)
 
             if not verdict.passed:
