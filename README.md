@@ -145,6 +145,7 @@ In **observe mode**, the full pipeline runs and audit events are emitted, but de
 ## Links
 
 - [Quickstart Guide](docs/quickstart.md)
+- [Adapter Usage Guide](docs/adapters.md) — code snippets for all 6 frameworks
 - [Architecture](ARCHITECTURE.md)
 - [Examples](examples/) — live demos for all 6 adapters
 - [License](LICENSE) (MIT)
