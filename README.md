@@ -14,16 +14,12 @@ Nothing sits between an AI agent deciding to call `rm -rf /` and it happening. C
 ## Install
 
 ```bash
-pip install callguard
+pip install callguard            # core only
+pip install callguard[all]       # all 6 framework adapters + OTel
+pip install callguard[langchain] # individual adapter extras
 ```
 
-Optional OpenTelemetry support:
-
-```bash
-pip install callguard[otel]
-```
-
-Requires Python 3.11+.
+Requires Python 3.11+. Zero runtime dependencies for the core package.
 
 ## Quickstart
 
@@ -51,13 +47,36 @@ async def main():
 asyncio.run(main())
 ```
 
-See [docs/quickstart.md](docs/quickstart.md) for Claude Agent SDK integration, custom contracts, hooks, and audit configuration.
+See [docs/quickstart.md](docs/quickstart.md) for custom contracts, hooks, and audit configuration.
+
+## Framework Adapters
+
+CallGuard ships thin adapters for 6 agent frameworks. Each adapter translates between the framework's hook/middleware interface and the shared governance pipeline — no forked logic.
+
+| Framework | Adapter | Hook Pattern |
+|-----------|---------|-------------|
+| LangChain | `LangChainAdapter` | `_pre_tool_call` / `_post_tool_call` |
+| CrewAI | `CrewAIAdapter` | `_before_hook` / `_after_hook` |
+| Agno | `AgnoAdapter` | `_hook_async` (wrap-around) |
+| Semantic Kernel | `SemanticKernelAdapter` | `_pre` / `_post` (filter) |
+| OpenAI Agents SDK | `OpenAIAgentsAdapter` | `_pre` / `_post` (guardrails) |
+| Claude Agent SDK | `ClaudeAgentSDKAdapter` | `_pre_tool_use` / `_post_tool_use` |
+
+```python
+from callguard import CallGuard
+from callguard.adapters.langchain import LangChainAdapter
+
+guard = CallGuard(contracts=[...])
+adapter = LangChainAdapter(guard, session_id="session-1")
+```
+
+Live demos for all 6 adapters are in [examples/](examples/).
 
 ## Key Concepts
 
 Every tool call is wrapped in a **ToolEnvelope** -- a frozen, deep-copied snapshot of the invocation (tool name, args, side-effect classification, environment). Envelopes are immutable. Nothing downstream can tamper with the original args.
 
-**Contracts** define governance rules. A `@precondition` runs before execution and can deny the call. A `@postcondition` runs after and emits warnings (observe-only in v0.0.1 -- it never blocks). A `@session_contract` checks cross-turn state like total execution counts. All return a `Verdict`: either `Verdict.pass_()` or `Verdict.fail("actionable message")`.
+**Contracts** define governance rules. A `@precondition` runs before execution and can deny the call. A `@postcondition` runs after and emits warnings (observe-only -- they emit warnings but never block). A `@session_contract` checks cross-turn state like total execution counts. All return a `Verdict`: either `Verdict.pass_()` or `Verdict.fail("actionable message")`.
 
 **Hooks** are lower-level interception points. A before-hook receives the envelope and returns `HookDecision.allow()` or `HookDecision.deny("reason")`. After-hooks observe the result. Hooks run before contracts in the pipeline.
 
@@ -81,4 +100,5 @@ In **observe mode**, the full pipeline runs and audit events are emitted, but de
 
 - [Quickstart Guide](docs/quickstart.md)
 - [Architecture](ARCHITECTURE.md)
+- [Examples](examples/) — live demos for all 6 adapters
 - [License](LICENSE) (MIT)

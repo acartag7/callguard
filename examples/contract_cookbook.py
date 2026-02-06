@@ -20,12 +20,9 @@ from __future__ import annotations
 
 import json
 import re
-import time
 from collections.abc import Callable
-from datetime import UTC, datetime
 
 from callguard import Verdict, postcondition, precondition, session_contract
-
 
 # ════════════════════════════════════════════════════════════════════
 #  PART 1: PRECONDITIONS — Block Before Execution
@@ -738,7 +735,7 @@ def make_require_before(prerequisite: str, dependent: str):
 
     @session_contract
     async def require_ordering(session):
-        prereq_count = await session.tool_execution_count(prerequisite)
+        await session.tool_execution_count(prerequisite)
         # This contract is checked on every tool call, but we only
         # care when the dependent tool is about to be called.
         # Since session contracts can't see the current envelope,
@@ -939,7 +936,6 @@ def devops_agent_contracts():
 
 if __name__ == "__main__":
     # Count all contracts defined in this file
-    import inspect
 
     preconditions = []
     postconditions = []
@@ -981,5 +977,6 @@ if __name__ == "__main__":
     print(f"\n  Compositions:       {len(compositions)}")
     for c in compositions:
         print(f"    • {c}")
-    print(f"\n  Total recipes:      {len(preconditions) + len(postconditions) + len(session_contracts) + len(factories) + len(compositions)}")
+    total = len(preconditions) + len(postconditions) + len(session_contracts) + len(factories) + len(compositions)
+    print(f"\n  Total recipes:      {total}")
     print("\n✓ All contracts compiled successfully.")
