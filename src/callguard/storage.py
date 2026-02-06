@@ -1,0 +1,53 @@
+"""StorageBackend protocol + MemoryBackend implementation."""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+
+class StorageBackend(Protocol):
+    """Protocol for persistent state storage.
+
+    Requirements:
+    - increment() MUST be atomic
+    - get/set for simple key-value
+    - TTL support for automatic cleanup
+
+    v0.0.1: No append() method (counters only, no list ops).
+    """
+
+    async def get(self, key: str) -> str | None: ...
+    async def set(self, key: str, value: str, ttl: int | None = None) -> None: ...
+    async def delete(self, key: str) -> None: ...
+    async def increment(self, key: str, amount: float = 1) -> float: ...
+
+
+class MemoryBackend:
+    """In-memory storage for development and testing.
+
+    WARNING: State lost on restart. Session contracts reset.
+    Suitable for: local dev, tests, single-process scripts.
+    """
+
+    def __init__(self):
+        self._data: dict[str, str] = {}
+        self._counters: dict[str, float] = {}
+
+    async def get(self, key: str) -> str | None:
+        if key in self._data:
+            return self._data[key]
+        if key in self._counters:
+            v = self._counters[key]
+            return str(int(v)) if v == int(v) else str(v)
+        return None
+
+    async def set(self, key: str, value: str, ttl: int | None = None) -> None:
+        self._data[key] = value
+
+    async def delete(self, key: str) -> None:
+        self._data.pop(key, None)
+        self._counters.pop(key, None)
+
+    async def increment(self, key: str, amount: float = 1) -> float:
+        self._counters[key] = self._counters.get(key, 0) + amount
+        return self._counters[key]

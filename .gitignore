@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.coverage
+.pytest_cache/
+*.egg
+
+# Claude Code (personal config)
+CLAUDE.local
+.claude/
