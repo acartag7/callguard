@@ -1,20 +1,20 @@
 # Framework Adapters
 
-Edictum integrates with 5 agent frameworks. The same YAML contracts produce
+Edictum integrates with 6 agent frameworks. The same YAML contracts produce
 the same governance decisions across all of them.
 
 ## Quick Comparison
 
-| Feature | LangChain | OpenAI Agents | Agno | Semantic Kernel | CrewAI |
-|---------|-----------|---------------|------|-----------------|--------|
-| PII redaction | True interception | Logged only* | True interception | True interception | Partial** |
-| Deny tool calls | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `on_postcondition_warn` | ✓ (transforms result) | ✓ (logged, cannot transform) | ✓ (transforms result) | ✓ (transforms result) | ✓ (partial, undocumented) |
-| Multiple adapters/process | ✓ | ✓ | ✓ | ✓ (per kernel) | ✗ (global hooks) |
-| Tool name normalization | Not needed | Not needed | Not needed | Handled internally | Required*** |
-| Token tracking | Reliable | Reliable | Not available | Under-reports | Reliable |
-| Relative token cost | 1x | 1.1x | N/A | 0.3–0.5x | ~3x |
-| Integration complexity | Low | Medium | Low | Medium–High | High |
+| Feature | LangChain | OpenAI Agents | Agno | Semantic Kernel | CrewAI | Claude Agent SDK |
+|---------|-----------|---------------|------|-----------------|--------|-----------------|
+| PII redaction | True interception | Logged only* | True interception | True interception | Partial** | Logged only |
+| Deny tool calls | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `on_postcondition_warn` | ✓ (transforms result) | ✓ (logged, cannot transform) | ✓ (transforms result) | ✓ (transforms result) | ✓ (partial, undocumented) | ✓ (side-effect only) |
+| Multiple adapters/process | ✓ | ✓ | ✓ | ✓ (per kernel) | ✗ (global hooks) | ✓ |
+| Tool name normalization | Not needed | Not needed | Not needed | Handled internally | Required*** | Not needed |
+| Token tracking | Reliable | Reliable | Not available | Under-reports | Reliable | N/A |
+| Relative token cost | 1x | 1.1x | N/A | 0.3–0.5x | ~3x | N/A |
+| Integration complexity | Low | Medium | Low | Medium–High | High | Low |
 
 \* OpenAI Agents output guardrails can allow or reject but cannot transform the result.
 PII is detected and logged in the audit trail, but the LLM sees the raw output.
@@ -321,11 +321,11 @@ hooks = adapter.to_sdk_hooks(
 
 The same YAML contracts produce the same governance decisions regardless of framework:
 
-| Contract | LangChain | OpenAI Agents | Agno | SK | CrewAI |
-|----------|-----------|---------------|------|----|--------|
-| case-report-requires-ticket (deny) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| restrict-patient-data (deny researcher) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| pii-in-any-output (postcondition warn) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Contract | LangChain | OpenAI Agents | Agno | SK | CrewAI | Claude SDK |
+|----------|-----------|---------------|------|----|--------|-----------|
+| case-report-requires-ticket (deny) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| restrict-patient-data (deny researcher) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| pii-in-any-output (postcondition warn) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Governance is deterministic. Framework behavior around denied calls and
 postcondition remediation varies — see comparison table above.

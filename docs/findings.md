@@ -182,6 +182,7 @@ transformed result reaches the LLM depends on the framework:
 | Semantic Kernel | `str` (wrapped in `FunctionResult`) | Yes | Full |
 | OpenAI Agents | `str` | No — allow/reject only | Logged only |
 | CrewAI | `str` | Partial (undocumented) | Partial |
+| Claude Agent SDK | `Any` | No — side-effect only | Logged only |
 
 For regulated environments requiring PII interception, use LangChain, Agno,
 or Semantic Kernel.

@@ -17,7 +17,7 @@
   ("Query Clinical Data" → "query_clinical_data")
 - Comprehensive framework comparison documentation in `docs/adapters.md`
   covering integration patterns, PII redaction capabilities, token costs,
-  and known limitations for all 5 frameworks
+  and known limitations for all 6 frameworks
 - Framework-specific `on_postcondition_warn` callback behavior documented
   in `docs/findings.md`
 

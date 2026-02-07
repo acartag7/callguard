@@ -99,7 +99,7 @@ middleware = EdictumMiddleware(guard)
 
 ## Framework Support
 
-Edictum integrates with 5 agent frameworks. Same YAML contracts,
+Edictum integrates with 6 agent frameworks. Same YAML contracts,
 same governance, different integration patterns:
 
 | Framework | Integration | PII Redaction | Complexity |
@@ -109,6 +109,7 @@ same governance, different integration patterns:
 | Agno | `as_tool_hook()` | Full interception | Low |
 | Semantic Kernel | `register()` | Full interception | Medium–High |
 | CrewAI | `register()` | Partial | High |
+| Claude Agent SDK | `to_sdk_hooks()` | Logged only | Low |
 
 See [Adapter Docs](docs/adapters.md) for setup, known limitations, and recommendations.
 
