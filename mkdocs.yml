@@ -1,0 +1,72 @@
+site_name: CallGuard
+site_description: Runtime contracts for AI agents
+site_url: https://acartagena.github.io/callguard/
+repo_url: https://github.com/acartagena/callguard
+repo_name: acartagena/callguard
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Contracts:
+    - YAML Reference: contracts/yaml-reference.md
+    - Operators: contracts/operators.md
+    - Templates: contracts/templates.md
+  - Adapters:
+    - Overview: adapters/overview.md
+    - Claude SDK: adapters/claude-sdk.md
+    - LangChain: adapters/langchain.md
+    - CrewAI: adapters/crewai.md
+    - Others: adapters/others.md
+  - CLI: cli.md
+  - Audit:
+    - Sinks: audit/sinks.md
+    - Telemetry: audit/telemetry.md
+  - Architecture: architecture.md
+  - Compliance: compliance.md

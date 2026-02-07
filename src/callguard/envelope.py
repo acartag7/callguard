@@ -32,11 +32,21 @@ class SideEffect(StrEnum):
 
 @dataclass(frozen=True)
 class Principal:
-    """Identity context for audit attribution."""
+    """Identity context for audit attribution.
+
+    NOTE: ``claims`` is a mutable dict held inside a frozen dataclass.
+    The *reference* is immutable (you cannot reassign ``principal.claims``),
+    but the dict contents can still be mutated.  We accept this tradeoff to
+    keep Principal frozen for hashability and envelope immutability.  Callers
+    should treat claims as read-only after construction.
+    """
 
     user_id: str | None = None
     service_id: str | None = None
     org_id: str | None = None
+    role: str | None = None
+    ticket_ref: str | None = None
+    claims: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -183,6 +193,18 @@ def create_envelope(
             safe_metadata = json.loads(json.dumps(kwargs.pop("metadata")))
         except (TypeError, ValueError):
             safe_metadata = copy.deepcopy(kwargs.pop("metadata"))
+
+    # Deep-copy Principal to protect claims dict
+    if "principal" in kwargs and kwargs["principal"] is not None:
+        p = kwargs.pop("principal")
+        kwargs["principal"] = Principal(
+            user_id=p.user_id,
+            service_id=p.service_id,
+            org_id=p.org_id,
+            role=p.role,
+            ticket_ref=p.ticket_ref,
+            claims=copy.deepcopy(p.claims) if p.claims else {},
+        )
 
     # Classification
     registry = kwargs.pop("registry", None)

@@ -381,5 +381,4 @@ The audit trail distinguishes three states:
 
 ## What's Next
 
-- [Architecture overview](../ARCHITECTURE.md) for the full module structure and design decisions.
-- [Examples](../examples/) for live demos of all 6 framework adapters.
+- [Architecture overview](architecture.md) for the full module structure and design decisions.

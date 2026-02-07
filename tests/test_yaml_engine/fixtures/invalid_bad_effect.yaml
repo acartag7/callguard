@@ -1,0 +1,19 @@
+apiVersion: callguard/v1
+kind: ContractBundle
+
+metadata:
+  name: bad-effect
+
+defaults:
+  mode: enforce
+
+contracts:
+  - id: bad-post
+    type: post
+    tool: "*"
+    when:
+      output.text:
+        contains: "secret"
+    then:
+      effect: deny
+      message: "This should fail — post must use warn."

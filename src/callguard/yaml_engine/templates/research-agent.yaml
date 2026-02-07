@@ -1,0 +1,43 @@
+apiVersion: callguard/v1
+kind: ContractBundle
+
+metadata:
+  name: research-agent
+  description: "Contracts for research agents. Rate limits and output caps."
+
+defaults:
+  mode: enforce
+
+contracts:
+  - id: block-sensitive-reads
+    type: pre
+    tool: read_file
+    when:
+      args.path:
+        contains_any: [".env", ".secret", "credentials"]
+    then:
+      effect: deny
+      message: "Sensitive file '{args.path}' blocked."
+      tags: [secrets]
+
+  - id: pii-in-output
+    type: post
+    tool: "*"
+    when:
+      output.text:
+        matches_any:
+          - '\\b\\d{3}-\\d{2}-\\d{4}\\b'
+    then:
+      effect: warn
+      message: "PII pattern detected in output. Redact before using."
+      tags: [pii, compliance]
+
+  - id: session-limits
+    type: session
+    limits:
+      max_tool_calls: 50
+      max_attempts: 100
+    then:
+      effect: deny
+      message: "Session limit reached. Summarize progress and stop."
+      tags: [rate-limit]

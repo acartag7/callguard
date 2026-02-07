@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 import uuid
 from collections.abc import Callable
+from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
 from callguard.audit import AuditAction, AuditEvent
-from callguard.envelope import create_envelope
+from callguard.envelope import Principal, create_envelope
 from callguard.pipeline import GovernancePipeline
 from callguard.session import Session
 
@@ -31,13 +32,19 @@ class AgnoAdapter:
     itself or return a denial string.
     """
 
-    def __init__(self, guard: CallGuard, session_id: str | None = None):
+    def __init__(
+        self,
+        guard: CallGuard,
+        session_id: str | None = None,
+        principal: Principal | None = None,
+    ):
         self._guard = guard
         self._pipeline = GovernancePipeline(guard)
         self._session_id = session_id or str(uuid.uuid4())
         self._session = Session(self._session_id, guard.backend)
         self._call_index = 0
         self._pending: dict[str, tuple[Any, Any]] = {}
+        self._principal = principal
 
     @property
     def session_id(self) -> str:
@@ -74,9 +81,7 @@ class AgnoAdapter:
 
         return hook
 
-    async def _hook_async(
-        self, function_name: str, function_call: Callable, arguments: dict[str, Any]
-    ) -> Any:
+    async def _hook_async(self, function_name: str, function_call: Callable, arguments: dict[str, Any]) -> Any:
         """Full wrap-around lifecycle: pre -> execute -> post."""
         call_id = str(uuid.uuid4())
 
@@ -109,8 +114,10 @@ class AgnoAdapter:
             tool_input=tool_input,
             run_id=self._session_id,
             call_index=self._call_index,
+            tool_use_id=call_id,
             environment=self._guard.environment,
             registry=self._guard.tool_registry,
+            principal=self._principal,
         )
         self._call_index += 1
 
@@ -139,6 +146,30 @@ class AgnoAdapter:
             span.end()
             self._pending.pop(call_id, None)
             return self._deny(decision.reason)
+
+        # Handle per-rule observed denials
+        if decision.observed:
+            for cr in decision.contracts_evaluated:
+                if cr.get("observed") and not cr.get("passed"):
+                    await self._guard.audit_sink.emit(
+                        AuditEvent(
+                            action=AuditAction.CALL_WOULD_DENY,
+                            run_id=envelope.run_id,
+                            call_id=envelope.call_id,
+                            call_index=envelope.call_index,
+                            tool_name=envelope.tool_name,
+                            tool_args=self._guard.redaction.redact_args(envelope.args),
+                            side_effect=envelope.side_effect.value,
+                            environment=envelope.environment,
+                            principal=asdict(envelope.principal) if envelope.principal else None,
+                            decision_source="precondition",
+                            decision_name=cr["name"],
+                            reason=cr["message"],
+                            mode="observe",
+                            policy_version=self._guard.policy_version,
+                            policy_error=decision.policy_error,
+                        )
+                    )
 
         # Handle allow
         await self._emit_audit_pre(envelope, decision)
@@ -176,12 +207,15 @@ class AgnoAdapter:
                 tool_args=self._guard.redaction.redact_args(envelope.args),
                 side_effect=envelope.side_effect.value,
                 environment=envelope.environment,
+                principal=asdict(envelope.principal) if envelope.principal else None,
                 tool_success=tool_success,
                 postconditions_passed=post_decision.postconditions_passed,
                 contracts_evaluated=post_decision.contracts_evaluated,
                 session_attempt_count=await self._session.attempt_count(),
                 session_execution_count=await self._session.execution_count(),
                 mode=self._guard.mode,
+                policy_version=self._guard.policy_version,
+                policy_error=post_decision.policy_error,
             )
         )
 
@@ -206,6 +240,7 @@ class AgnoAdapter:
                 tool_args=self._guard.redaction.redact_args(envelope.args),
                 side_effect=envelope.side_effect.value,
                 environment=envelope.environment,
+                principal=asdict(envelope.principal) if envelope.principal else None,
                 decision_source=decision.decision_source,
                 decision_name=decision.decision_name,
                 reason=decision.reason,
@@ -214,6 +249,8 @@ class AgnoAdapter:
                 session_attempt_count=await self._session.attempt_count(),
                 session_execution_count=await self._session.execution_count(),
                 mode=self._guard.mode,
+                policy_version=self._guard.policy_version,
+                policy_error=decision.policy_error,
             )
         )
 

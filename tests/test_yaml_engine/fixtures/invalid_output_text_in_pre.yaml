@@ -1,0 +1,19 @@
+apiVersion: callguard/v1
+kind: ContractBundle
+
+metadata:
+  name: invalid-output-text-in-pre
+
+defaults:
+  mode: enforce
+
+contracts:
+  - id: bad-pre-with-output
+    type: pre
+    tool: "*"
+    when:
+      output.text:
+        contains: "secret"
+    then:
+      effect: deny
+      message: "Should not be valid."

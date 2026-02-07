@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from dataclasses import asdict, dataclass, field
@@ -29,7 +30,7 @@ class AuditAction(StrEnum):
 
 @dataclass
 class AuditEvent:
-    schema_version: str = "0.0.1"
+    schema_version: str = "0.3.0"
 
     # Identity
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -68,6 +69,10 @@ class AuditEvent:
 
     # Mode
     mode: str = "enforce"
+
+    # Policy tracking
+    policy_version: str | None = None
+    policy_error: bool = False
 
 
 class RedactionPolicy:
@@ -133,7 +138,7 @@ class RedactionPolicy:
                 key: "[REDACTED]" if self._is_sensitive_key(key) else self.redact_args(value)
                 for key, value in args.items()
             }
-        elif isinstance(args, (list, tuple)):
+        elif isinstance(args, list | tuple):
             return [self.redact_args(item) for item in args]
         elif isinstance(args, str):
             if self._detect_values and self._looks_like_secret(args):
@@ -205,5 +210,9 @@ class FileAuditSink:
         data["action"] = event.action.value
         data = self._redaction.cap_payload(data)
         line = json.dumps(data, default=str) + "\n"
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._write_line, line)
+
+    def _write_line(self, line: str) -> None:
         with open(self._path, "a") as f:
             f.write(line)

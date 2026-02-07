@@ -1,0 +1,29 @@
+apiVersion: callguard/v1
+kind: ContractBundle
+
+metadata:
+  name: dup-ids
+
+defaults:
+  mode: enforce
+
+contracts:
+  - id: same-id
+    type: pre
+    tool: read_file
+    when:
+      args.path:
+        contains: ".env"
+    then:
+      effect: deny
+      message: "first"
+
+  - id: same-id
+    type: pre
+    tool: write_file
+    when:
+      args.path:
+        contains: ".env"
+    then:
+      effect: deny
+      message: "second — duplicate ID"

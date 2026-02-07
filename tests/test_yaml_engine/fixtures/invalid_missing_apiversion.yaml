@@ -1,0 +1,18 @@
+kind: ContractBundle
+
+metadata:
+  name: test-bundle
+
+defaults:
+  mode: enforce
+
+contracts:
+  - id: test
+    type: pre
+    tool: read_file
+    when:
+      args.path:
+        contains: ".env"
+    then:
+      effect: deny
+      message: "blocked"

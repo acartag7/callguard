@@ -1,0 +1,42 @@
+apiVersion: callguard/v1
+kind: ContractBundle
+
+metadata:
+  name: test-bundle
+  description: "Test bundle for unit tests."
+
+defaults:
+  mode: enforce
+
+contracts:
+  - id: block-sensitive-reads
+    type: pre
+    tool: read_file
+    when:
+      args.path:
+        contains_any: [".env", ".secret"]
+    then:
+      effect: deny
+      message: "Sensitive file '{args.path}' blocked."
+      tags: [secrets, dlp]
+
+  - id: pii-in-output
+    type: post
+    tool: "*"
+    when:
+      output.text:
+        matches_any: ['\b\d{3}-\d{2}-\d{4}\b']
+    then:
+      effect: warn
+      message: "PII detected in output."
+      tags: [pii]
+
+  - id: session-limits
+    type: session
+    limits:
+      max_tool_calls: 50
+      max_attempts: 120
+    then:
+      effect: deny
+      message: "Session limit reached."
+      tags: [rate-limit]

@@ -1,0 +1,10 @@
+apiVersion: callguard/v1
+kind: ContractBundle
+
+metadata:
+  name: empty
+
+defaults:
+  mode: enforce
+
+contracts: []
