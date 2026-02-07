@@ -59,6 +59,9 @@ def postcondition(tool: str, when: Callable | None = None):
 def session_contract(func: Callable) -> Callable:
     """Cross-turn governance using persisted atomic counters.
 
+    The decorated function **must** accept a ``session`` parameter —
+    the pipeline calls ``contract(session)`` at evaluation time.
+
     Session methods are ASYNC. Session contracts must be async:
 
         @session_contract
