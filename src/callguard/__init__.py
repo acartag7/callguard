@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from importlib.metadata import version as _pkg_version
+
+try:
+    __version__ = _pkg_version("callguard")
+except Exception:  # pragma: no cover — editable installs, test envs
+    __version__ = "0.0.0-dev"
+
 import asyncio
 import uuid
 from collections.abc import Callable
@@ -36,6 +43,7 @@ from callguard.telemetry import GovernanceTelemetry
 from callguard.types import HookRegistration
 
 __all__ = [
+    "__version__",
     "CallGuard",
     "CallGuardConfigError",
     "CallGuardDenied",
