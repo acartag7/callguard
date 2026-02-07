@@ -266,6 +266,52 @@ class TestSyncToolWrapperCallback:
         assert result.content == "ok"
 
 
+class TestCallbackExceptionSafety:
+    """Callback exceptions should be caught, logged, and not break execution."""
+
+    async def test_callback_exception_returns_original_result(self):
+        """If callback raises, original result is returned unchanged."""
+
+        @postcondition("TestTool")
+        def detect_issue(envelope, result):
+            return Verdict.fail("issue found")
+
+        def exploding_callback(result, findings):
+            raise RuntimeError("callback exploded")
+
+        guard = make_guard(contracts=[detect_issue])
+        adapter = LangChainAdapter(guard)
+        wrapper = adapter.as_async_tool_wrapper(on_postcondition_warn=exploding_callback)
+        request = _make_request()
+
+        async def handler(req):
+            return "original output"
+
+        result = await wrapper(request, handler)
+        assert result == "original output"
+
+    async def test_sync_wrapper_callback_exception_returns_original(self):
+        """Sync wrapper: callback exception returns original result."""
+
+        @postcondition("TestTool")
+        def detect_issue(envelope, result):
+            return Verdict.fail("issue found")
+
+        def exploding_callback(result, findings):
+            raise ValueError("boom")
+
+        guard = make_guard(contracts=[detect_issue])
+        adapter = LangChainAdapter(guard)
+        wrapper = adapter.as_tool_wrapper(on_postcondition_warn=exploding_callback)
+        request = _make_request()
+
+        def handler(req):
+            return FakeToolMessage(content="raw", tool_call_id="tc-1")
+
+        result = wrapper(request, handler)
+        assert result.content == "raw"
+
+
 class TestFindingsImportableFromEdictum:
     """Verify Finding and PostCallResult are in the public API."""
 

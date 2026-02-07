@@ -89,17 +89,23 @@ def classify_finding(contract_id: str, verdict_message: str) -> str:
 
 
 def build_findings(post_decision: PostDecision) -> list[Finding]:
-    """Build Finding objects from a PostDecision's failed postconditions."""
+    """Build Finding objects from a PostDecision's failed postconditions.
+
+    The ``field`` value is extracted from ``metadata["field"]`` if the
+    contract provides it (e.g. ``Verdict.fail("msg", field="output.text")``),
+    otherwise defaults to ``"output"`` for postconditions.
+    """
     findings = []
     for cr in post_decision.contracts_evaluated:
         if not cr.get("passed"):
+            meta = cr.get("metadata", {})
             findings.append(
                 Finding(
                     type=classify_finding(cr["name"], cr.get("message", "")),
                     contract_id=cr["name"],
-                    field="output",
+                    field=meta.get("field", "output"),
                     message=cr.get("message", ""),
-                    metadata=cr.get("metadata", {}),
+                    metadata=meta,
                 )
             )
     return findings

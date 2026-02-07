@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import pytest
 
-from edictum.findings import Finding, PostCallResult, classify_finding
+from edictum.findings import Finding, PostCallResult, build_findings, classify_finding
 
 
 class TestFinding:
@@ -82,3 +84,70 @@ class TestClassifyFinding:
     def test_case_insensitive(self):
         assert classify_finding("PII-Check", "Found SSN") == "pii_detected"
         assert classify_finding("SECRET-SCAN", "Token found") == "secret_detected"
+
+
+@dataclass
+class FakePostDecision:
+    """Minimal stand-in for PostDecision in tests."""
+
+    postconditions_passed: bool = True
+    contracts_evaluated: list = field(default_factory=list)
+
+
+class TestBuildFindings:
+    def test_field_defaults_to_output(self):
+        """When no field in metadata, defaults to 'output'."""
+        decision = FakePostDecision(
+            postconditions_passed=False,
+            contracts_evaluated=[
+                {"name": "pii-check", "passed": False, "message": "SSN found"},
+            ],
+        )
+        findings = build_findings(decision)
+        assert len(findings) == 1
+        assert findings[0].field == "output"
+
+    def test_field_extracted_from_metadata(self):
+        """When metadata contains 'field', it's used instead of default."""
+        decision = FakePostDecision(
+            postconditions_passed=False,
+            contracts_evaluated=[
+                {
+                    "name": "pii-check",
+                    "passed": False,
+                    "message": "SSN found",
+                    "metadata": {"field": "output.text"},
+                },
+            ],
+        )
+        findings = build_findings(decision)
+        assert len(findings) == 1
+        assert findings[0].field == "output.text"
+
+    def test_skips_passed_contracts(self):
+        """Only failed contracts produce findings."""
+        decision = FakePostDecision(
+            postconditions_passed=True,
+            contracts_evaluated=[
+                {"name": "ok-check", "passed": True, "message": None},
+            ],
+        )
+        findings = build_findings(decision)
+        assert findings == []
+
+    def test_metadata_preserved_in_finding(self):
+        """Metadata from contract record is passed through to Finding."""
+        decision = FakePostDecision(
+            postconditions_passed=False,
+            contracts_evaluated=[
+                {
+                    "name": "pii-check",
+                    "passed": False,
+                    "message": "SSN found",
+                    "metadata": {"field": "output.text", "match_count": 3},
+                },
+            ],
+        )
+        findings = build_findings(decision)
+        assert findings[0].metadata["match_count"] == 3
+        assert findings[0].metadata["field"] == "output.text"

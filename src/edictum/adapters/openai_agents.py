@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict
@@ -13,6 +14,8 @@ from edictum.envelope import Principal, create_envelope
 from edictum.findings import Finding, PostCallResult, build_findings
 from edictum.pipeline import GovernancePipeline
 from edictum.session import Session
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from edictum import Edictum
@@ -110,7 +113,10 @@ class OpenAIAgentsAdapter:
                 post_result = await adapter._post(call_id, tool_output)
 
             if post_result and not post_result.postconditions_passed and adapter._on_postcondition_warn:
-                adapter._on_postcondition_warn(post_result.result, post_result.findings)
+                try:
+                    adapter._on_postcondition_warn(post_result.result, post_result.findings)
+                except Exception:
+                    logger.exception("on_postcondition_warn callback raised")
 
             return ToolGuardrailFunctionOutput.allow()
 

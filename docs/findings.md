@@ -34,7 +34,7 @@ Each finding contains:
 |-------|------|-------------|
 | `type` | str | Category: `pii_detected`, `secret_detected`, `limit_exceeded`, `policy_violation` |
 | `contract_id` | str | Which contract produced this finding |
-| `field` | str | Which selector triggered it (e.g., `output.text`, `args.content`) |
+| `field` | str | Which selector triggered it. Defaults to `"output"` for postconditions; contracts can provide a more specific value via `Verdict.fail("msg", field="output.text")` |
 | `message` | str | Human-readable description |
 | `metadata` | dict | Extra context (optional) |
 
@@ -136,6 +136,38 @@ wrapper = adapter.as_tool_wrapper(on_postcondition_warn=route_by_type)
 The callback fires in both modes when postconditions produce findings.
 Postconditions with `effect: warn` always allow the tool call to complete --
 the callback controls what the LLM sees in the result.
+
+## Callback Semantics by Adapter
+
+The callback behavior differs depending on whether the adapter controls tool execution:
+
+| Adapter | Pattern | Callback return value |
+|---------|---------|----------------------|
+| **LangChain** | Wrap-around | **Replaces** tool result — the LLM sees the callback return value |
+| **Agno** | Wrap-around | **Replaces** tool result |
+| **Semantic Kernel** | Filter | **Replaces** `context.function_result` |
+| **CrewAI** | Hook | Side-effect only — return value ignored (framework controls result) |
+| **Claude Agent SDK** | Hook | Side-effect only — return value ignored |
+| **OpenAI Agents SDK** | Guardrail | Side-effect only — return value ignored |
+
+For **wrap-around** adapters, write callbacks that return the transformed result:
+
+```python
+def redact(result, findings):
+    return mask_pii(result)  # returned value replaces the original
+```
+
+For **hook-based** adapters, write callbacks that perform side effects (logging, alerting):
+
+```python
+def log_and_alert(result, findings):
+    logger.warning("PII detected: %s", findings)
+    alert_service.notify(findings)
+    # return value is ignored
+```
+
+If the callback raises an exception, it is caught and logged. The original
+tool result is returned unchanged to avoid breaking execution.
 
 ## Relationship to Contracts
 

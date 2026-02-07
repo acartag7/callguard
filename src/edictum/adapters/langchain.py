@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict
@@ -13,6 +14,8 @@ from edictum.envelope import Principal, create_envelope
 from edictum.findings import Finding, PostCallResult, build_findings
 from edictum.pipeline import GovernancePipeline
 from edictum.session import Session
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from edictum import Edictum
@@ -82,7 +85,10 @@ class LangChainAdapter:
 
             post_result = loop.run_until_complete(adapter._post_tool_call(request, result))
             if not post_result.postconditions_passed and on_postcondition_warn:
-                return on_postcondition_warn(post_result.result, post_result.findings)
+                try:
+                    return on_postcondition_warn(post_result.result, post_result.findings)
+                except Exception:
+                    logger.exception("on_postcondition_warn callback raised")
             return post_result.result
 
         return edictum_middleware
@@ -137,7 +143,10 @@ class LangChainAdapter:
             result = handler(request)
             post_result = _run_async(adapter._post_tool_call(request, result))
             if not post_result.postconditions_passed and on_postcondition_warn:
-                return on_postcondition_warn(post_result.result, post_result.findings)
+                try:
+                    return on_postcondition_warn(post_result.result, post_result.findings)
+                except Exception:
+                    logger.exception("on_postcondition_warn callback raised")
             return post_result.result
 
         return wrapper
@@ -168,7 +177,10 @@ class LangChainAdapter:
             result = await handler(request)
             post_result = await adapter._post_tool_call(request, result)
             if not post_result.postconditions_passed and on_postcondition_warn:
-                return on_postcondition_warn(post_result.result, post_result.findings)
+                try:
+                    return on_postcondition_warn(post_result.result, post_result.findings)
+                except Exception:
+                    logger.exception("on_postcondition_warn callback raised")
             return post_result.result
 
         return wrapper

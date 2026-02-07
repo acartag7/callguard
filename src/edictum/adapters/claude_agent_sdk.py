@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict
@@ -12,6 +13,8 @@ from edictum.envelope import Principal, create_envelope
 from edictum.findings import Finding, build_findings
 from edictum.pipeline import GovernancePipeline
 from edictum.session import Session
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from edictum import Edictum
@@ -182,7 +185,10 @@ class ClaudeAgentSDKAdapter:
         findings = build_findings(post_decision)
         on_warn = getattr(self, "_on_postcondition_warn", None)
         if not post_decision.postconditions_passed and findings and on_warn:
-            on_warn(tool_response, findings)
+            try:
+                on_warn(tool_response, findings)
+            except Exception:
+                logger.exception("on_postcondition_warn callback raised")
 
         # Return warnings as additionalContext
         if post_decision.warnings:

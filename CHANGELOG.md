@@ -10,8 +10,15 @@
 - `docs/findings.md` -- full documentation with remediation examples
 
 ### Changed
-- Adapter `_post_tool_call` now returns `PostCallResult` instead of `None`
 - All 6 adapters support optional postcondition remediation callbacks
+
+### Breaking (internal)
+- Adapter internal `_post*` methods now return `PostCallResult` instead of
+  `None`/`{}`. Code that subclasses adapters or calls `_post_tool_call` /
+  `_post` / `_after_hook` directly must handle `PostCallResult` instead of
+  the previous return type. Public wrapper APIs (`as_tool_wrapper`,
+  `as_middleware`, `as_tool_hook`, etc.) are unchanged — they still return
+  the tool result directly.
 
 ### Fixed
 - Postcondition findings no longer depend on audit sink state (eliminates race condition
