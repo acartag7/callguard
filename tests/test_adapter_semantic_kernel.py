@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from callguard import CallGuard, Verdict, precondition
-from callguard.adapters.semantic_kernel import SemanticKernelAdapter
-from callguard.audit import AuditAction
-from callguard.storage import MemoryBackend
+from edictum import Edictum, Verdict, precondition
+from edictum.adapters.semantic_kernel import SemanticKernelAdapter
+from edictum.audit import AuditAction
+from edictum.storage import MemoryBackend
 from tests.conftest import NullAuditSink
 
 
@@ -16,7 +16,7 @@ def make_guard(**kwargs):
         "backend": MemoryBackend(),
     }
     defaults.update(kwargs)
-    return CallGuard(**defaults)
+    return Edictum(**defaults)
 
 
 class TestSemanticKernelAdapter:

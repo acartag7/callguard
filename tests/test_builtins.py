@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from callguard.builtins import deny_sensitive_reads
-from callguard.envelope import create_envelope
+from edictum.builtins import deny_sensitive_reads
+from edictum.envelope import create_envelope
 
 
 class TestDenySensitiveReads:
@@ -108,8 +108,8 @@ class TestDenySensitiveReads:
 
     def test_has_precondition_attributes(self):
         check = deny_sensitive_reads()
-        assert check._callguard_type == "precondition"
-        assert check._callguard_tool == "*"
+        assert check._edictum_type == "precondition"
+        assert check._edictum_tool == "*"
 
     def test_no_file_path_no_command_passes(self):
         check = deny_sensitive_reads()

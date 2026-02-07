@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from callguard.envelope import Principal, ToolEnvelope, create_envelope
-from callguard.yaml_engine.evaluator import _PolicyError, evaluate_expression
+from edictum.envelope import Principal, ToolEnvelope, create_envelope
+from edictum.yaml_engine.evaluator import _PolicyError, evaluate_expression
 
 # --- Helpers ---
 
@@ -68,9 +68,7 @@ class TestSelectorResolution:
 
     def test_principal_claims(self):
         env = _envelope(principal=Principal(claims={"department": "platform"}))
-        result = evaluate_expression(
-            {"principal.claims.department": {"equals": "platform"}}, env
-        )
+        result = evaluate_expression({"principal.claims.department": {"equals": "platform"}}, env)
         assert result is True
 
     def test_output_text(self):
@@ -193,39 +191,19 @@ class TestEqualityOperators:
 class TestMembershipOperators:
     def test_in_operator(self):
         env = _envelope(principal=Principal(role="sre"))
-        assert (
-            evaluate_expression(
-                {"principal.role": {"in": ["sre", "admin", "senior_engineer"]}}, env
-            )
-            is True
-        )
+        assert evaluate_expression({"principal.role": {"in": ["sre", "admin", "senior_engineer"]}}, env) is True
 
     def test_in_operator_not_in_list(self):
         env = _envelope(principal=Principal(role="junior"))
-        assert (
-            evaluate_expression(
-                {"principal.role": {"in": ["sre", "admin"]}}, env
-            )
-            is False
-        )
+        assert evaluate_expression({"principal.role": {"in": ["sre", "admin"]}}, env) is False
 
     def test_not_in_operator(self):
         env = _envelope(principal=Principal(role="junior"))
-        assert (
-            evaluate_expression(
-                {"principal.role": {"not_in": ["sre", "admin"]}}, env
-            )
-            is True
-        )
+        assert evaluate_expression({"principal.role": {"not_in": ["sre", "admin"]}}, env) is True
 
     def test_not_in_operator_is_in_list(self):
         env = _envelope(principal=Principal(role="admin"))
-        assert (
-            evaluate_expression(
-                {"principal.role": {"not_in": ["sre", "admin"]}}, env
-            )
-            is False
-        )
+        assert evaluate_expression({"principal.role": {"not_in": ["sre", "admin"]}}, env) is False
 
 
 # --- String Operators ---
@@ -239,21 +217,11 @@ class TestStringOperators:
 
     def test_contains_any(self):
         env = _envelope(args={"path": "/home/.env"})
-        assert (
-            evaluate_expression(
-                {"args.path": {"contains_any": [".env", ".secret"]}}, env
-            )
-            is True
-        )
+        assert evaluate_expression({"args.path": {"contains_any": [".env", ".secret"]}}, env) is True
 
     def test_contains_any_none_match(self):
         env = _envelope(args={"path": "/home/readme.md"})
-        assert (
-            evaluate_expression(
-                {"args.path": {"contains_any": [".env", ".secret"]}}, env
-            )
-            is False
-        )
+        assert evaluate_expression({"args.path": {"contains_any": [".env", ".secret"]}}, env) is False
 
     def test_starts_with(self):
         env = _envelope(args={"path": "/etc/config"})
@@ -267,39 +235,19 @@ class TestStringOperators:
 
     def test_matches(self):
         env = _envelope(args={"command": "rm -rf /tmp"})
-        assert (
-            evaluate_expression(
-                {"args.command": {"matches": r"\brm\s+(-rf?|--recursive)\b"}}, env
-            )
-            is True
-        )
+        assert evaluate_expression({"args.command": {"matches": r"\brm\s+(-rf?|--recursive)\b"}}, env) is True
 
     def test_matches_no_match(self):
         env = _envelope(args={"command": "ls -la"})
-        assert (
-            evaluate_expression(
-                {"args.command": {"matches": r"\brm\s+(-rf?|--recursive)\b"}}, env
-            )
-            is False
-        )
+        assert evaluate_expression({"args.command": {"matches": r"\brm\s+(-rf?|--recursive)\b"}}, env) is False
 
     def test_matches_any(self):
         env = _envelope(args={"command": "mkfs /dev/sda"})
-        assert (
-            evaluate_expression(
-                {"args.command": {"matches_any": [r"\brm\b", r"\bmkfs\b"]}}, env
-            )
-            is True
-        )
+        assert evaluate_expression({"args.command": {"matches_any": [r"\brm\b", r"\bmkfs\b"]}}, env) is True
 
     def test_matches_any_none_match(self):
         env = _envelope(args={"command": "echo hello"})
-        assert (
-            evaluate_expression(
-                {"args.command": {"matches_any": [r"\brm\b", r"\bmkfs\b"]}}, env
-            )
-            is False
-        )
+        assert evaluate_expression({"args.command": {"matches_any": [r"\brm\b", r"\bmkfs\b"]}}, env) is False
 
 
 # --- Numeric Operators ---

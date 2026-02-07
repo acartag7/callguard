@@ -1,4 +1,4 @@
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:

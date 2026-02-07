@@ -15,8 +15,8 @@ from dataclasses import asdict
 
 import pytest
 
-from callguard.audit import AuditEvent, FileAuditSink, StdoutAuditSink
-from callguard.envelope import Principal, create_envelope
+from edictum.audit import AuditEvent, FileAuditSink, StdoutAuditSink
+from edictum.envelope import Principal, create_envelope
 
 
 class TestPrincipalNewFields:

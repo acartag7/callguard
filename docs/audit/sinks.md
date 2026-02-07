@@ -1,6 +1,6 @@
 # Audit Sinks
 
-Every governance decision in CallGuard produces an `AuditEvent`. Audit sinks consume
+Every governance decision in Edictum produces an `AuditEvent`. Audit sinks consume
 these events and route them to storage, monitoring, or alerting systems.
 
 ## The AuditSink Protocol
@@ -9,7 +9,7 @@ Any class that implements the `AuditSink` protocol can receive audit events. The
 protocol requires a single async method:
 
 ```python
-from callguard.audit import AuditSink
+from edictum.audit import AuditSink
 
 class MyCustomSink:
     async def emit(self, event: AuditEvent) -> None:
@@ -17,17 +17,17 @@ class MyCustomSink:
         ...
 ```
 
-CallGuard checks conformance at runtime via `@runtime_checkable`, so there is no need
+Edictum checks conformance at runtime via `@runtime_checkable`, so there is no need
 to inherit from a base class. Implement `emit` and you are done.
 
-Register a sink when constructing your `CallGuard` instance:
+Register a sink when constructing your `Edictum` instance:
 
 ```python
-from callguard import CallGuard
-from callguard.audit import FileAuditSink
+from edictum import Edictum
+from edictum.audit import FileAuditSink
 
-guard = CallGuard(
-    audit_sink=FileAuditSink("/var/log/callguard/events.jsonl"),
+guard = Edictum(
+    audit_sink=FileAuditSink("/var/log/edictum/events.jsonl"),
 )
 ```
 
@@ -111,7 +111,7 @@ Prints each event as a single JSON line to stdout. Useful for development and fo
 piping into log aggregators.
 
 ```python
-from callguard.audit import StdoutAuditSink, RedactionPolicy
+from edictum.audit import StdoutAuditSink, RedactionPolicy
 
 sink = StdoutAuditSink(redaction=RedactionPolicy())
 ```
@@ -128,10 +128,10 @@ Appends each event as a JSON line to a file. Creates the file if it does not exi
 Suitable for local audit logs and offline analysis.
 
 ```python
-from callguard.audit import FileAuditSink, RedactionPolicy
+from edictum.audit import FileAuditSink, RedactionPolicy
 
 sink = FileAuditSink(
-    path="/var/log/callguard/events.jsonl",
+    path="/var/log/edictum/events.jsonl",
     redaction=RedactionPolicy(),
 )
 ```
@@ -150,15 +150,15 @@ Posts each event as JSON via HTTP POST. Supports exponential-backoff retries
 via `asyncio.create_task` without blocking the governance pipeline.
 
 ```bash
-pip install callguard[sinks]  # adds aiohttp dependency
+pip install edictum[sinks]  # adds aiohttp dependency
 ```
 
 ```python
-from callguard.audit import RedactionPolicy
-from callguard.sinks.webhook import WebhookAuditSink
+from edictum.audit import RedactionPolicy
+from edictum.sinks.webhook import WebhookAuditSink
 
 sink = WebhookAuditSink(
-    url="https://hooks.example.com/callguard",
+    url="https://hooks.example.com/edictum",
     headers={"Authorization": "Bearer <token>"},
     fire_and_forget=False,
     redaction_policy=RedactionPolicy(),
@@ -192,18 +192,18 @@ the HEC envelope format with a configurable `index` and `sourcetype`.
 Authentication uses the `Authorization: Splunk <token>` header.
 
 ```bash
-pip install callguard[sinks]
+pip install edictum[sinks]
 ```
 
 ```python
-from callguard.audit import RedactionPolicy
-from callguard.sinks.splunk import SplunkHECSink
+from edictum.audit import RedactionPolicy
+from edictum.sinks.splunk import SplunkHECSink
 
 sink = SplunkHECSink(
     url="https://splunk.example.com:8088/services/collector",
     token="your-hec-token",
     index="ai_governance",
-    sourcetype="callguard",
+    sourcetype="edictum",
     redaction_policy=RedactionPolicy(),
 )
 ```
@@ -215,7 +215,7 @@ sink = SplunkHECSink(
 | `url` | `str` | (required) | Splunk HEC endpoint URL |
 | `token` | `str` | (required) | HEC authentication token |
 | `index` | `str` | `"main"` | Splunk index to write to |
-| `sourcetype` | `str` | `"callguard"` | Sourcetype for the events |
+| `sourcetype` | `str` | `"edictum"` | Sourcetype for the events |
 | `redaction_policy` | `RedactionPolicy \| None` | `None` | Redaction policy applied before sending |
 
 The HEC payload sent to Splunk looks like:
@@ -223,7 +223,7 @@ The HEC payload sent to Splunk looks like:
 ```json
 {
   "event": { "...audit event fields..." },
-  "sourcetype": "callguard",
+  "sourcetype": "edictum",
   "index": "ai_governance"
 }
 ```
@@ -234,18 +234,18 @@ Sends events to the Datadog Logs API. Events are posted to
 `https://http-intake.logs.{site}/api/v2/logs` with the `DD-API-KEY` header.
 
 ```bash
-pip install callguard[sinks]
+pip install edictum[sinks]
 ```
 
 ```python
-from callguard.audit import RedactionPolicy
-from callguard.sinks.datadog import DatadogSink
+from edictum.audit import RedactionPolicy
+from edictum.sinks.datadog import DatadogSink
 
 sink = DatadogSink(
     api_key="your-datadog-api-key",
     site="datadoghq.com",
-    service="callguard",
-    source="callguard",
+    service="edictum",
+    source="edictum",
     redaction_policy=RedactionPolicy(),
 )
 ```
@@ -256,8 +256,8 @@ sink = DatadogSink(
 |-----------|------|---------|-------------|
 | `api_key` | `str` | (required) | Datadog API key |
 | `site` | `str` | `"datadoghq.com"` | Datadog site (`datadoghq.com`, `datadoghq.eu`, `us3.datadoghq.com`, etc.) |
-| `service` | `str` | `"callguard"` | Service name tag |
-| `source` | `str` | `"callguard"` | Source tag for Datadog pipelines |
+| `service` | `str` | `"edictum"` | Service name tag |
+| `source` | `str` | `"edictum"` | Source tag for Datadog pipelines |
 | `redaction_policy` | `RedactionPolicy \| None` | `None` | Redaction policy applied before sending |
 
 The Datadog payload format:
@@ -265,9 +265,9 @@ The Datadog payload format:
 ```json
 [
   {
-    "ddsource": "callguard",
-    "ddtags": "service:callguard",
-    "service": "callguard",
+    "ddsource": "edictum",
+    "ddtags": "service:edictum",
+    "service": "edictum",
     "message": { "...audit event fields..." }
   }
 ]
@@ -282,7 +282,7 @@ aiohttp session that is created on first `emit()` and reused across calls. Call
 `close()` when shutting down to release the connection pool:
 
 ```python
-sink = WebhookAuditSink(url="https://hooks.example.com/callguard")
+sink = WebhookAuditSink(url="https://hooks.example.com/edictum")
 
 # ... use the sink ...
 
@@ -343,7 +343,7 @@ dropping events due to oversized payloads.
 ### Custom Redaction
 
 ```python
-from callguard.audit import RedactionPolicy
+from edictum.audit import RedactionPolicy
 
 policy = RedactionPolicy(
     sensitive_keys={"my_custom_key", "internal_token"},  # merged with defaults via substring matching
@@ -362,7 +362,7 @@ Implement the `AuditSink` protocol to route events to any destination:
 
 ```python
 import json
-from callguard.audit import AuditEvent, RedactionPolicy
+from edictum.audit import AuditEvent, RedactionPolicy
 
 class KafkaAuditSink:
     """Send audit events to a Kafka topic."""
@@ -387,11 +387,11 @@ class KafkaAuditSink:
 Then register it:
 
 ```python
-guard = CallGuard(
-    audit_sink=KafkaAuditSink(producer, "callguard-events"),
+guard = Edictum(
+    audit_sink=KafkaAuditSink(producer, "edictum-events"),
 )
 ```
 
-The `AuditSink` protocol is `@runtime_checkable`, so CallGuard validates your
+The `AuditSink` protocol is `@runtime_checkable`, so Edictum validates your
 sink at registration time. If `emit` is missing or has the wrong signature,
 you get an immediate `TypeError` rather than a silent failure at event time.

@@ -1,6 +1,6 @@
 # LangChain Adapter
 
-The `LangChainAdapter` connects CallGuard to LangChain agents through the
+The `LangChainAdapter` connects Edictum to LangChain agents through the
 `tool_call_middleware` system. It produces a `@wrap_tool_call` decorated function
 that intercepts every tool invocation, runs governance checks, and returns a
 `ToolMessage` denial when a call is blocked.
@@ -8,7 +8,7 @@ that intercepts every tool invocation, runs governance checks, and returns a
 ## Installation
 
 ```bash
-pip install callguard[langchain]
+pip install edictum[langchain]
 ```
 
 This installs `langchain-core >= 0.3`, which provides the `wrap_tool_call`
@@ -16,26 +16,26 @@ middleware decorator.
 
 ## Setup
 
-### 1. Create a CallGuard instance
+### 1. Create a Edictum instance
 
 ```python
-from callguard import CallGuard, Principal
+from edictum import Edictum, Principal
 
 # From YAML contracts
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 
 # Or from a built-in template
-guard = CallGuard.from_template("research-agent")
+guard = Edictum.from_template("research-agent")
 
 # Or with Python contracts
-from callguard import deny_sensitive_reads
-guard = CallGuard(contracts=[deny_sensitive_reads()])
+from edictum import deny_sensitive_reads
+guard = Edictum(contracts=[deny_sensitive_reads()])
 ```
 
 ### 2. Create the adapter and get the middleware
 
 ```python
-from callguard.adapters.langchain import LangChainAdapter
+from edictum.adapters.langchain import LangChainAdapter
 
 principal = Principal(user_id="alice", role="analyst")
 
@@ -60,13 +60,13 @@ agent = create_react_agent(
 ## Full Working Example
 
 ```python
-from callguard import CallGuard, Principal
-from callguard.adapters.langchain import LangChainAdapter
+from edictum import Edictum, Principal
+from edictum.adapters.langchain import LangChainAdapter
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_react_agent
 
 # Configure governance
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 
 # Create adapter with identity
 adapter = LangChainAdapter(
@@ -125,7 +125,7 @@ do not modify the tool's return value.
 
 ## Known Limitation: Event Loops
 
-The LangChain middleware interface is synchronous, but CallGuard's governance
+The LangChain middleware interface is synchronous, but Edictum's governance
 pipeline is async. The adapter bridges this gap using
 `asyncio.get_event_loop().run_until_complete()`.
 
@@ -147,7 +147,7 @@ Workarounds:
 2. **Run the agent in a separate thread** that does not have an active event
    loop.
 
-3. **Use `CallGuard.run()` directly** in an async context instead of going
+3. **Use `Edictum.run()` directly** in an async context instead of going
    through the LangChain middleware.
 
 ## Observe Mode
@@ -156,7 +156,7 @@ Deploy contracts in observation mode to see what would be denied without
 blocking any tool calls:
 
 ```python
-guard = CallGuard.from_yaml("contracts.yaml", mode="observe")
+guard = Edictum.from_yaml("contracts.yaml", mode="observe")
 adapter = LangChainAdapter(guard=guard)
 middleware = adapter.as_middleware()
 ```
@@ -170,12 +170,12 @@ review enforcement behavior before enabling it.
 Route audit events to a file instead of stdout:
 
 ```python
-from callguard.audit import FileAuditSink, RedactionPolicy
+from edictum.audit import FileAuditSink, RedactionPolicy
 
 redaction = RedactionPolicy()
 sink = FileAuditSink("langchain-audit.jsonl", redaction=redaction)
 
-guard = CallGuard.from_yaml(
+guard = Edictum.from_yaml(
     "contracts.yaml",
     audit_sink=sink,
     redaction=redaction,

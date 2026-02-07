@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from callguard import CallGuard, Verdict, precondition
-from callguard.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
-from callguard.audit import AuditAction
-from callguard.storage import MemoryBackend
+from edictum import Edictum, Verdict, precondition
+from edictum.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
+from edictum.audit import AuditAction
+from edictum.storage import MemoryBackend
 from tests.conftest import NullAuditSink
 
 
@@ -18,7 +18,7 @@ def make_guard(**kwargs):
         "backend": MemoryBackend(),
     }
     defaults.update(kwargs)
-    return CallGuard(**defaults)
+    return Edictum(**defaults)
 
 
 class TestClaudeAgentSDKAdapter:
@@ -138,7 +138,7 @@ class TestClaudeAgentSDKAdapter:
         assert AuditAction.CALL_EXECUTED in actions
 
     async def test_post_tool_warnings_in_output(self):
-        from callguard.contracts import postcondition as postc
+        from edictum.contracts import postcondition as postc
 
         @postc("TestTool")
         def bad_result(envelope, result):
@@ -166,7 +166,7 @@ class TestClaudeAgentSDKAdapter:
         assert "post_tool_use" in hooks
 
 
-class TestCallGuardRun:
+class TestEdictumRun:
     async def test_run_allows_and_returns(self):
         guard = make_guard()
 
@@ -198,9 +198,9 @@ class TestCallGuardRun:
         async def my_tool(**kwargs):
             return "ok"
 
-        from callguard import CallGuardDenied
+        from edictum import EdictumDenied
 
-        with pytest.raises(CallGuardDenied) as exc_info:
+        with pytest.raises(EdictumDenied) as exc_info:
             await guard.run("TestTool", {}, my_tool)
         assert exc_info.value.reason == "denied by precondition"
 
@@ -215,9 +215,9 @@ class TestCallGuardRun:
         async def my_tool(**kwargs):
             return "ok"
 
-        from callguard import CallGuardDenied
+        from edictum import EdictumDenied
 
-        with pytest.raises(CallGuardDenied):
+        with pytest.raises(EdictumDenied):
             await guard.run("TestTool", {}, my_tool)
         actions = [e.action for e in sink.events]
         assert AuditAction.CALL_DENIED in actions
@@ -232,9 +232,9 @@ class TestCallGuardRun:
         async def failing_tool(**kwargs):
             raise RuntimeError("boom")
 
-        from callguard import CallGuardToolError
+        from edictum import EdictumToolError
 
-        with pytest.raises(CallGuardToolError):
+        with pytest.raises(EdictumToolError):
             await guard.run("TestTool", {}, failing_tool)
         actions = [e.action for e in sink.events]
         assert AuditAction.CALL_ALLOWED in actions

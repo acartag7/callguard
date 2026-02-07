@@ -3,23 +3,23 @@
 ## Installation
 
 ```bash
-pip install callguard            # core only
-pip install callguard[all]       # all 6 framework adapters + OTel
-pip install callguard[langchain] # individual adapter extras
+pip install edictum            # core only
+pip install edictum[all]       # all 6 framework adapters + OTel
+pip install edictum[langchain] # individual adapter extras
 ```
 
 Requires Python 3.11+. Zero runtime dependencies for the core package.
 
 ## Framework-Agnostic Usage (guard.run)
 
-`guard.run()` is the simplest way to govern a tool call. It runs the full governance pipeline, executes the tool if allowed, and raises `CallGuardDenied` if blocked.
+`guard.run()` is the simplest way to govern a tool call. It runs the full governance pipeline, executes the tool if allowed, and raises `EdictumDenied` if blocked.
 
 ```python
 import asyncio
-from callguard import (
-    CallGuard,
-    CallGuardDenied,
-    CallGuardToolError,
+from edictum import (
+    Edictum,
+    EdictumDenied,
+    EdictumToolError,
     Verdict,
     deny_sensitive_reads,
     precondition,
@@ -37,7 +37,7 @@ def no_destructive_commands(envelope):
     return Verdict.pass_()
 
 
-guard = CallGuard(
+guard = Edictum(
     contracts=[
         deny_sensitive_reads(),
         no_destructive_commands,
@@ -58,7 +58,7 @@ async def main():
     # Denied: destructive command
     try:
         await guard.run("Bash", {"command": "rm -rf /tmp/data"}, run_bash)
-    except CallGuardDenied as e:
+    except EdictumDenied as e:
         print(f"Denied: {e.reason}")
         print(f"Source: {e.decision_source}")  # "precondition"
 
@@ -69,7 +69,7 @@ async def main():
             {"file_path": "/home/user/.ssh/id_rsa"},
             lambda file_path: open(file_path).read(),
         )
-    except CallGuardDenied as e:
+    except EdictumDenied as e:
         print(f"Denied: {e.reason}")
 
 
@@ -82,11 +82,11 @@ Observe mode runs the full pipeline but never blocks. Denials are logged as `CAL
 
 ```python
 import asyncio
-from callguard import CallGuard, Verdict, deny_sensitive_reads, precondition
-from callguard.audit import FileAuditSink
+from edictum import Edictum, Verdict, deny_sensitive_reads, precondition
+from edictum.audit import FileAuditSink
 
 
-guard = CallGuard(
+guard = Edictum(
     mode="observe",
     contracts=[deny_sensitive_reads()],
     audit_sink=FileAuditSink("audit.jsonl"),
@@ -109,12 +109,12 @@ asyncio.run(main())
 
 ## Framework Adapters
 
-CallGuard ships thin adapters for 6 agent frameworks. Each translates between the framework's hook interface and the shared governance pipeline.
+Edictum ships thin adapters for 6 agent frameworks. Each translates between the framework's hook interface and the shared governance pipeline.
 
 ```python
-from callguard import CallGuard, deny_sensitive_reads, OperationLimits
+from edictum import Edictum, deny_sensitive_reads, OperationLimits
 
-guard = CallGuard(
+guard = Edictum(
     contracts=[deny_sensitive_reads()],
     limits=OperationLimits(max_tool_calls=100),
 )
@@ -122,7 +122,7 @@ guard = CallGuard(
 
 **LangChain:**
 ```python
-from callguard.adapters.langchain import LangChainAdapter
+from edictum.adapters.langchain import LangChainAdapter
 adapter = LangChainAdapter(guard, session_id="session-lc")
 # pre_result = await adapter._pre_tool_call(request)
 # await adapter._post_tool_call(request, result)
@@ -130,7 +130,7 @@ adapter = LangChainAdapter(guard, session_id="session-lc")
 
 **CrewAI:**
 ```python
-from callguard.adapters.crewai import CrewAIAdapter
+from edictum.adapters.crewai import CrewAIAdapter
 adapter = CrewAIAdapter(guard, session_id="session-crew")
 # allowed = await adapter._before_hook(context)  # False = denied
 # await adapter._after_hook(context)
@@ -138,14 +138,14 @@ adapter = CrewAIAdapter(guard, session_id="session-crew")
 
 **Agno:**
 ```python
-from callguard.adapters.agno import AgnoAdapter
+from edictum.adapters.agno import AgnoAdapter
 adapter = AgnoAdapter(guard, session_id="session-agno")
 # result = await adapter._hook_async(name, callable, args)
 ```
 
 **Semantic Kernel:**
 ```python
-from callguard.adapters.semantic_kernel import SemanticKernelAdapter
+from edictum.adapters.semantic_kernel import SemanticKernelAdapter
 adapter = SemanticKernelAdapter(guard, session_id="session-sk")
 # pre = await adapter._pre(name, args, call_id)  # {} or "DENIED: ..."
 # await adapter._post(call_id, result)
@@ -153,7 +153,7 @@ adapter = SemanticKernelAdapter(guard, session_id="session-sk")
 
 **OpenAI Agents SDK:**
 ```python
-from callguard.adapters.openai_agents import OpenAIAgentsAdapter
+from edictum.adapters.openai_agents import OpenAIAgentsAdapter
 adapter = OpenAIAgentsAdapter(guard, session_id="session-oai")
 # pre = await adapter._pre(name, args, call_id)  # None or "DENIED: ..."
 # await adapter._post(call_id, result)
@@ -161,7 +161,7 @@ adapter = OpenAIAgentsAdapter(guard, session_id="session-oai")
 
 **Claude Agent SDK:**
 ```python
-from callguard.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
+from edictum.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
 adapter = ClaudeAgentSDKAdapter(guard, session_id="session-claude")
 # pre = await adapter._pre_tool_use(name, input, id)  # {} or deny dict
 # await adapter._post_tool_use(id, response)
@@ -176,7 +176,7 @@ Each adapter manages pending state between pre and post hooks, tracks call indic
 Preconditions run before execution. They receive a `ToolEnvelope` and return a `Verdict`. If the verdict fails, the tool call is denied and the agent receives the failure message.
 
 ```python
-from callguard import Verdict, precondition
+from edictum import Verdict, precondition
 
 
 # Target a specific tool
@@ -208,8 +208,8 @@ Postconditions run after execution. They are observe-only -- they emit warnings 
 - **Write/Irreversible tools:** warning says "assess before proceeding" (no retry coaching for something that already mutated state).
 
 ```python
-from callguard import Verdict
-from callguard.contracts import postcondition
+from edictum import Verdict
+from edictum.contracts import postcondition
 
 
 @postcondition("Bash")
@@ -226,8 +226,8 @@ def check_exit_status(envelope, result):
 Session contracts check cross-turn state using persisted atomic counters. They must be async because session methods are async.
 
 ```python
-from callguard import Verdict
-from callguard.contracts import session_contract
+from edictum import Verdict
+from edictum.contracts import session_contract
 
 
 @session_contract
@@ -246,9 +246,9 @@ async def limit_bash_calls(session):
 Hooks are lower-level than contracts. A before-hook receives the `ToolEnvelope` and returns a `HookDecision`. Hooks run before preconditions in the pipeline.
 
 ```python
-from callguard import CallGuard
-from callguard.hooks import HookDecision
-from callguard.types import HookRegistration
+from edictum import Edictum
+from edictum.hooks import HookDecision
+from edictum.types import HookRegistration
 
 
 def log_and_allow(envelope):
@@ -264,7 +264,7 @@ def deny_after_hours(envelope):
     return HookDecision.allow()
 
 
-guard = CallGuard(
+guard = Edictum(
     hooks=[
         HookRegistration(phase="before", tool="*", callback=log_and_allow),
         HookRegistration(phase="before", tool="Bash", callback=deny_after_hours),
@@ -279,7 +279,7 @@ def audit_after(envelope, result):
     print(f"[after] {envelope.tool_name} completed")
 
 
-guard = CallGuard(
+guard = Edictum(
     hooks=[
         HookRegistration(phase="after", tool="*", callback=audit_after),
     ],
@@ -291,14 +291,14 @@ guard = CallGuard(
 Every tool call emits a structured `AuditEvent` to a configurable sink. Two built-in sinks are provided:
 
 ```python
-from callguard import CallGuard
-from callguard.audit import FileAuditSink, RedactionPolicy, StdoutAuditSink
+from edictum import Edictum
+from edictum.audit import FileAuditSink, RedactionPolicy, StdoutAuditSink
 
 # JSON to stdout (default)
-guard = CallGuard(audit_sink=StdoutAuditSink())
+guard = Edictum(audit_sink=StdoutAuditSink())
 
 # JSON lines to a file
-guard = CallGuard(audit_sink=FileAuditSink("audit.jsonl"))
+guard = Edictum(audit_sink=FileAuditSink("audit.jsonl"))
 ```
 
 ### Redaction
@@ -315,14 +315,14 @@ What gets auto-redacted:
 Custom configuration:
 
 ```python
-from callguard import CallGuard
-from callguard.audit import FileAuditSink, RedactionPolicy
+from edictum import Edictum
+from edictum.audit import FileAuditSink, RedactionPolicy
 
 redaction = RedactionPolicy(
     sensitive_keys={"my_internal_token", "database_url", "password"},
 )
 
-guard = CallGuard(
+guard = Edictum(
     audit_sink=FileAuditSink("audit.jsonl", redaction=redaction),
     redaction=redaction,
 )
@@ -348,9 +348,9 @@ Operation limits cap how many tool calls an agent can make in a session. Two cou
 - **`max_calls_per_tool`** caps individual tools independently.
 
 ```python
-from callguard import CallGuard, OperationLimits
+from edictum import Edictum, OperationLimits
 
-guard = CallGuard(
+guard = Edictum(
     limits=OperationLimits(
         max_attempts=100,
         max_tool_calls=50,
@@ -367,7 +367,7 @@ Set `mode="observe"` to run the full governance pipeline without blocking anythi
 
 Use this for:
 
-- **Shadow deployment.** Deploy CallGuard alongside your agent, collect audit logs, and tune rules before switching to enforce mode.
+- **Shadow deployment.** Deploy Edictum alongside your agent, collect audit logs, and tune rules before switching to enforce mode.
 - **Rule development.** Write new preconditions and see what they'd block without disrupting the agent.
 - **Compliance auditing.** Record every tool call with governance evaluation results, even if you don't want to block anything yet.
 

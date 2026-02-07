@@ -1,9 +1,9 @@
-"""Optional OpenTelemetry configuration for CallGuard demos."""
+"""Optional OpenTelemetry configuration for Edictum demos."""
 
 from __future__ import annotations
 
 
-def setup_otel(service_name: str = "callguard-demo") -> None:
+def setup_otel(service_name: str = "edictum-demo") -> None:
     """Configure OTel tracing if opentelemetry-sdk is installed."""
     try:
         from opentelemetry import trace
@@ -17,4 +17,4 @@ def setup_otel(service_name: str = "callguard-demo") -> None:
         trace.set_tracer_provider(provider)
         print(f"[otel] Tracing enabled for {service_name}")
     except ImportError:
-        print("[otel] opentelemetry-sdk not installed, tracing disabled. Install with: pip install callguard[otel]")
+        print("[otel] opentelemetry-sdk not installed, tracing disabled. Install with: pip install edictum[otel]")

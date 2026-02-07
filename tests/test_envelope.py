@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from callguard.envelope import (
+from edictum.envelope import (
     BashClassifier,
     SideEffect,
     ToolRegistry,

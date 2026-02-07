@@ -6,7 +6,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from callguard.audit import (
+from edictum.audit import (
     AuditAction,
     AuditEvent,
     FileAuditSink,

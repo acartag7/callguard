@@ -1,14 +1,14 @@
 # Architecture
 
-CallGuard enforces runtime contracts on AI agent tool calls. This page describes
+Edictum enforces runtime contracts on AI agent tool calls. This page describes
 how the system is structured, how data flows through it, and the reasoning behind
 the key design decisions.
 
 ## Module Overview
 
 ```
-src/callguard/
-  __init__.py              CallGuard facade (registers contracts, hooks, sinks)
+src/edictum/
+  __init__.py              Edictum facade (registers contracts, hooks, sinks)
 
   envelope.py              ToolEnvelope, Principal, ToolRegistry, BashClassifier
   contracts.py             @precondition, @postcondition, @session_contract, Verdict
@@ -119,7 +119,7 @@ YAML file
   │
   ├── loader.py
   │     Parse YAML text
-  │     Validate against JSON Schema (callguard-v1.schema.json)
+  │     Validate against JSON Schema (edictum-v1.schema.json)
   │     Compute SHA-256 hash (becomes policy_version in audit events)
   │     Return structured contract definitions
   │
@@ -131,7 +131,7 @@ YAML file
   │     Return list of contract objects + OperationLimits
   │
   └── Result: identical objects to Python-defined contracts
-        Registered in CallGuard the same way
+        Registered in Edictum the same way
         Executed by the same GovernancePipeline
 ```
 
@@ -244,7 +244,7 @@ to stop and reassess rather than keep retrying.
 
 ## Error Handling Philosophy
 
-CallGuard follows a "fail-closed" default with explicit opt-in to permissive
+Edictum follows a "fail-closed" default with explicit opt-in to permissive
 behavior:
 
 - **Unregistered tools** default to `SideEffect.IRREVERSIBLE` (most restrictive

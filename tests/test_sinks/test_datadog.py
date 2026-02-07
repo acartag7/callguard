@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from callguard.audit import AuditAction, AuditEvent, RedactionPolicy
-from callguard.sinks.datadog import DatadogSink
+from edictum.audit import AuditAction, AuditEvent, RedactionPolicy
+from edictum.sinks.datadog import DatadogSink
 
 
 @pytest.fixture
@@ -65,7 +65,7 @@ class TestDatadogSink:
         sink = DatadogSink(api_key="dd-api-key-123")
         fake_session = _FakeSession()
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             await sink.emit(event)
 
         assert len(fake_session.calls) == 1
@@ -73,9 +73,9 @@ class TestDatadogSink:
         assert isinstance(body, list)
         assert len(body) == 1
         entry = body[0]
-        assert entry["ddsource"] == "callguard"
-        assert entry["service"] == "callguard"
-        assert entry["ddtags"] == "service:callguard"
+        assert entry["ddsource"] == "edictum"
+        assert entry["service"] == "edictum"
+        assert entry["ddtags"] == "service:edictum"
         assert entry["message"]["tool_name"] == "Bash"
         assert entry["message"]["action"] == "call_denied"
         assert entry["message"]["policy_version"] == "sha256:abc123"
@@ -85,7 +85,7 @@ class TestDatadogSink:
         sink = DatadogSink(api_key="dd-api-key-123")
         fake_session = _FakeSession()
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             await sink.emit(event)
 
         headers = fake_session.calls[0]["headers"]
@@ -96,7 +96,7 @@ class TestDatadogSink:
         sink = DatadogSink(api_key="dd-api-key-123", site="datadoghq.eu")
         fake_session = _FakeSession()
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             await sink.emit(event)
 
         url = fake_session.calls[0]["url"]
@@ -114,7 +114,7 @@ class TestDatadogSink:
         )
         fake_session = _FakeSession()
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             await sink.emit(event)
 
         body = json.loads(fake_session.calls[0]["data"])
@@ -133,7 +133,7 @@ class TestDatadogSink:
         )
         fake_session = _FakeSession()
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             await sink.emit(event)
 
         body = json.loads(fake_session.calls[0]["data"])
@@ -147,7 +147,7 @@ class TestDatadogSink:
         )
         fake_session = _FakeSession(_FakeResponse(500))
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             # Should not raise — retries then logs error
             await sink.emit(event)
 

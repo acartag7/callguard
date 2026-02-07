@@ -1,4 +1,4 @@
-"""End-to-end integration tests for CallGuard v0.3.0.
+"""End-to-end integration tests for Edictum v0.3.0.
 
 These tests verify that Streams A (YAML engine), B (Principal), and C (Audit sinks)
 compose correctly through the full pipeline. Unit tests prove pieces work;
@@ -17,11 +17,11 @@ from pathlib import Path
 
 import pytest
 
-from callguard import (
+from edictum import (
     AuditAction,
     AuditEvent,
-    CallGuard,
-    CallGuardDenied,
+    Edictum,
+    EdictumDenied,
     FileAuditSink,
     Principal,
     ToolEnvelope,
@@ -34,7 +34,7 @@ from callguard import (
 # ---------------------------------------------------------------------------
 
 DEVOPS_AGENT_YAML = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -119,7 +119,7 @@ contracts:
 """
 
 OBSERVE_MODE_YAML = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -152,7 +152,7 @@ contracts:
 """
 
 DISABLED_RULE_YAML = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -185,7 +185,7 @@ contracts:
 """
 
 EDGE_CASES_YAML = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -278,16 +278,16 @@ class TestYAMLToPipelineBasic:
     """Verify YAML-loaded contracts produce correct verdicts through the full pipeline."""
 
     @pytest.fixture
-    def guard(self) -> tuple[CallGuard, CollectingAuditSink]:
+    def guard(self) -> tuple[Edictum, CollectingAuditSink]:
         path = write_yaml(DEVOPS_AGENT_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
         return guard, sink
 
     @pytest.mark.asyncio
     async def test_sensitive_read_denied(self, guard):
         g, sink = guard
-        with pytest.raises(CallGuardDenied, match="Sensitive file"):
+        with pytest.raises(EdictumDenied, match="Sensitive file"):
             await g.run(
                 "read_file",
                 {"path": "/home/user/.env"},
@@ -313,7 +313,7 @@ class TestYAMLToPipelineBasic:
     @pytest.mark.asyncio
     async def test_destructive_bash_denied(self, guard):
         g, sink = guard
-        with pytest.raises(CallGuardDenied, match="Destructive command"):
+        with pytest.raises(EdictumDenied, match="Destructive command"):
             await g.run(
                 "bash",
                 {"command": "rm -rf /tmp/important"},
@@ -333,7 +333,7 @@ class TestYAMLToPipelineBasic:
     @pytest.mark.asyncio
     async def test_mkfs_denied(self, guard):
         g, sink = guard
-        with pytest.raises(CallGuardDenied):
+        with pytest.raises(EdictumDenied):
             await g.run(
                 "bash",
                 {"command": "mkfs.ext4 /dev/sda1"},
@@ -361,17 +361,17 @@ class TestPrincipalIntegration:
     """Verify YAML contracts correctly evaluate principal fields from Stream B."""
 
     @pytest.fixture
-    def guard(self) -> tuple[CallGuard, CollectingAuditSink]:
+    def guard(self) -> tuple[Edictum, CollectingAuditSink]:
         path = write_yaml(DEVOPS_AGENT_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
         return guard, sink
 
     @pytest.mark.asyncio
     async def test_prod_deploy_denied_without_senior_role(self, guard):
         g, sink = guard
         junior = Principal(user_id="junior-dev", role="developer")
-        with pytest.raises(CallGuardDenied, match="senior role"):
+        with pytest.raises(EdictumDenied, match="senior role"):
             await g.run(
                 "deploy_service",
                 {"service": "api", "version": "1.2.0"},
@@ -400,7 +400,7 @@ class TestPrincipalIntegration:
         g, sink = guard
         # Has senior role but no ticket_ref
         admin_no_ticket = Principal(user_id="admin-1", role="admin")
-        with pytest.raises(CallGuardDenied, match="ticket reference"):
+        with pytest.raises(EdictumDenied, match="ticket reference"):
             await g.run(
                 "deploy_service",
                 {"service": "api", "version": "1.2.0"},
@@ -441,7 +441,7 @@ class TestPrincipalIntegration:
         which is TRUE. So this rule SHOULD fire.
         """
         g, sink = guard
-        with pytest.raises(CallGuardDenied, match="ticket reference"):
+        with pytest.raises(EdictumDenied, match="ticket reference"):
             await g.run(
                 "deploy_service",
                 {"service": "api", "version": "1.2.0"},
@@ -455,14 +455,14 @@ class TestPrincipalIntegration:
         """Verify principal.claims.<key> selector works end-to-end."""
         path = write_yaml(EDGE_CASES_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         restricted = Principal(
             user_id="user-1",
             role="engineer",
             claims={"department": "restricted"},
         )
-        with pytest.raises(CallGuardDenied, match="Department"):
+        with pytest.raises(EdictumDenied, match="Department"):
             await guard.run(
                 "deploy_service",
                 {"service": "api"},
@@ -475,7 +475,7 @@ class TestPrincipalIntegration:
         """principal.claims.department when claims has no 'department' → false."""
         path = write_yaml(EDGE_CASES_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         no_dept = Principal(user_id="user-1", role="engineer", claims={"team": "alpha"})
         # claims-check won't fire (missing field), but wildcard lockdown
@@ -499,10 +499,10 @@ class TestPostconditionIntegration:
     """Verify postconditions evaluate tool output through the full pipeline."""
 
     @pytest.fixture
-    def guard(self) -> tuple[CallGuard, CollectingAuditSink]:
+    def guard(self) -> tuple[Edictum, CollectingAuditSink]:
         path = write_yaml(DEVOPS_AGENT_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
         return guard, sink
 
     @pytest.mark.asyncio
@@ -550,7 +550,7 @@ class TestSessionLimitsIntegration:
     async def test_session_tool_call_limit(self):
         path = write_yaml(DEVOPS_AGENT_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         # Session limit is max_tool_calls=5
         for i in range(5):
@@ -561,7 +561,7 @@ class TestSessionLimitsIntegration:
             )
 
         # 6th call should be denied
-        with pytest.raises(CallGuardDenied, match="Session limit"):
+        with pytest.raises(EdictumDenied, match="Session limit"):
             await guard.run(
                 "send_email",
                 {"to": "one-too-many@test.com", "body": "hello"},
@@ -572,7 +572,7 @@ class TestSessionLimitsIntegration:
     async def test_per_tool_limit(self):
         path = write_yaml(DEVOPS_AGENT_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         # deploy_service limited to 2 per session
         sre = Principal(user_id="sre-1", role="sre", ticket_ref="JIRA-100")
@@ -586,7 +586,7 @@ class TestSessionLimitsIntegration:
             )
 
         # 3rd deploy should hit per-tool limit
-        with pytest.raises(CallGuardDenied):
+        with pytest.raises(EdictumDenied):
             await guard.run(
                 "deploy_service",
                 {"service": "svc-3", "version": "1.0"},
@@ -597,13 +597,13 @@ class TestSessionLimitsIntegration:
 
     @pytest.mark.asyncio
     async def test_session_state_isolated_between_guards(self):
-        """Different CallGuard instances should have independent sessions."""
+        """Different Edictum instances should have independent sessions."""
         path = write_yaml(EDGE_CASES_YAML)  # max_tool_calls=3
 
         sink1 = CollectingAuditSink()
-        guard1 = CallGuard.from_yaml(str(path), audit_sink=sink1)
+        guard1 = Edictum.from_yaml(str(path), audit_sink=sink1)
         sink2 = CollectingAuditSink()
-        guard2 = CallGuard.from_yaml(str(path), audit_sink=sink2)
+        guard2 = Edictum.from_yaml(str(path), audit_sink=sink2)
 
         # Use 2 calls on guard1
         for _ in range(2):
@@ -624,7 +624,7 @@ class TestSessionLimitsIntegration:
             )
 
         # guard2 hits limit on 4th
-        with pytest.raises(CallGuardDenied):
+        with pytest.raises(EdictumDenied):
             await guard2.run(
                 "any_tool",
                 {"x": 1},
@@ -646,7 +646,7 @@ class TestObserveModeIntegration:
         """An observed rule should not block, but should audit as would_deny."""
         path = write_yaml(OBSERVE_MODE_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         # 'curl' matches the observed rule — should pass through
         result = await guard.run(
@@ -666,9 +666,9 @@ class TestObserveModeIntegration:
         """An enforced rule in the same bundle should still block."""
         path = write_yaml(OBSERVE_MODE_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
-        with pytest.raises(CallGuardDenied, match="enforced rule"):
+        with pytest.raises(EdictumDenied, match="enforced rule"):
             await guard.run(
                 "bash",
                 {"command": "rm -rf /"},
@@ -680,7 +680,7 @@ class TestObserveModeIntegration:
         """Bundle-level observe mode should not block any rule."""
         path = write_yaml(DEVOPS_AGENT_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), mode="observe", audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), mode="observe", audit_sink=sink)
 
         # This would normally be denied
         result = await guard.run(
@@ -704,7 +704,7 @@ class TestDisabledRulesIntegration:
     async def test_disabled_rule_does_not_fire(self):
         path = write_yaml(DISABLED_RULE_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         # 'ls' matches disabled-rule, but it should not fire
         result = await guard.run(
@@ -722,9 +722,9 @@ class TestDisabledRulesIntegration:
     async def test_active_rule_still_fires(self):
         path = write_yaml(DISABLED_RULE_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
-        with pytest.raises(CallGuardDenied, match="Blocked"):
+        with pytest.raises(EdictumDenied, match="Blocked"):
             await guard.run(
                 "bash",
                 {"command": "rm -rf /tmp"},
@@ -741,18 +741,18 @@ class TestAuditIntegrity:
     """Verify audit events contain all expected fields from v0.3.0."""
 
     @pytest.fixture
-    def setup(self) -> tuple[CallGuard, CollectingAuditSink, str]:
+    def setup(self) -> tuple[Edictum, CollectingAuditSink, str]:
         yaml_content = DEVOPS_AGENT_YAML
         path = write_yaml(yaml_content)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
         bundle_hash = expected_hash(yaml_content)
         return guard, sink, bundle_hash
 
     @pytest.mark.asyncio
     async def test_policy_version_on_denied_event(self, setup):
         guard, sink, bundle_hash = setup
-        with pytest.raises(CallGuardDenied):
+        with pytest.raises(EdictumDenied):
             await guard.run(
                 "read_file",
                 {"path": ".env"},
@@ -777,7 +777,7 @@ class TestAuditIntegrity:
     @pytest.mark.asyncio
     async def test_tags_in_audit_event(self, setup):
         guard, sink, _ = setup
-        with pytest.raises(CallGuardDenied):
+        with pytest.raises(EdictumDenied):
             await guard.run(
                 "read_file",
                 {"path": ".env"},
@@ -793,7 +793,7 @@ class TestAuditIntegrity:
     @pytest.mark.asyncio
     async def test_decision_source_is_yaml_prefixed(self, setup):
         guard, sink, _ = setup
-        with pytest.raises(CallGuardDenied):
+        with pytest.raises(EdictumDenied):
             await guard.run(
                 "read_file",
                 {"path": ".secret"},
@@ -832,7 +832,7 @@ class TestAuditIntegrity:
             audit_path = f.name
 
         file_sink = FileAuditSink(audit_path)
-        guard = CallGuard.from_yaml(str(path), audit_sink=file_sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=file_sink)
 
         await guard.run(
             "read_file",
@@ -859,9 +859,9 @@ class TestEdgeCases:
         """args.config.timeout should resolve nested dict access."""
         path = write_yaml(EDGE_CASES_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
-        with pytest.raises(CallGuardDenied, match="Timeout too high"):
+        with pytest.raises(EdictumDenied, match="Timeout too high"):
             await guard.run(
                 "configure",
                 {"config": {"timeout": 600, "retries": 3}},
@@ -874,7 +874,7 @@ class TestEdgeCases:
         """args.config.timeout where args has no 'config' key → false."""
         path = write_yaml(EDGE_CASES_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         # No 'config' key in args — nested-args-check should not fire
         result = await guard.run(
@@ -890,9 +890,9 @@ class TestEdgeCases:
         """tool: '*' should match any tool name."""
         path = write_yaml(EDGE_CASES_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
-        with pytest.raises(CallGuardDenied, match="locked"):
+        with pytest.raises(EdictumDenied, match="locked"):
             await guard.run(
                 "absolutely_any_tool",
                 {"x": 1},
@@ -905,7 +905,7 @@ class TestEdgeCases:
         """Verify {args.path} gets expanded in denial message."""
         path = write_yaml(DEVOPS_AGENT_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         try:
             await guard.run(
@@ -913,7 +913,7 @@ class TestEdgeCases:
                 {"path": "/secrets/db.env"},
                 tool_callable=lambda **kw: "",
             )
-        except CallGuardDenied as e:
+        except EdictumDenied as e:
             assert "/secrets/db.env" in str(e.reason)
 
     @pytest.mark.asyncio
@@ -921,7 +921,7 @@ class TestEdgeCases:
         """Placeholder values longer than 200 chars should be truncated."""
         path = write_yaml(DEVOPS_AGENT_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         long_path = "/secrets/" + "a" * 500 + ".env"
         try:
@@ -930,7 +930,7 @@ class TestEdgeCases:
                 {"path": long_path},
                 tool_callable=lambda **kw: "",
             )
-        except CallGuardDenied as e:
+        except EdictumDenied as e:
             # The expanded placeholder should be capped at 200 chars
             # The full path (500+ chars) should NOT appear in the message
             assert len(str(e.reason)) <= 700  # message + capped placeholder
@@ -945,7 +945,7 @@ class TestEdgeCases:
         # We test indirectly: message should not crash even with unusual args
         path = write_yaml(DEVOPS_AGENT_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         # bash command matches mkfs but message template references {args.command}
         try:
@@ -954,7 +954,7 @@ class TestEdgeCases:
                 {"command": "mkfs.ext4 /dev/sda1"},
                 tool_callable=lambda **kw: "",
             )
-        except CallGuardDenied as e:
+        except EdictumDenied as e:
             assert "mkfs.ext4" in str(e.reason)
 
 
@@ -980,7 +980,7 @@ class TestPythonYAMLEquivalence:
             return Verdict.pass_()
 
         py_sink = CollectingAuditSink()
-        py_guard = CallGuard(
+        py_guard = Edictum(
             contracts=[py_block_sensitive],
             audit_sink=py_sink,
         )
@@ -988,17 +988,17 @@ class TestPythonYAMLEquivalence:
         # YAML version
         yaml_sink = CollectingAuditSink()
         yaml_path = write_yaml(DEVOPS_AGENT_YAML)
-        yaml_guard = CallGuard.from_yaml(str(yaml_path), audit_sink=yaml_sink)
+        yaml_guard = Edictum.from_yaml(str(yaml_path), audit_sink=yaml_sink)
 
         # Test: both should deny .env
-        with pytest.raises(CallGuardDenied):
+        with pytest.raises(EdictumDenied):
             await py_guard.run(
                 "read_file",
                 {"path": "/app/.env"},
                 tool_callable=lambda **kw: "",
             )
 
-        with pytest.raises(CallGuardDenied):
+        with pytest.raises(EdictumDenied):
             await yaml_guard.run(
                 "read_file",
                 {"path": "/app/.env"},
@@ -1030,26 +1030,26 @@ class TestTemplateLoading:
     @pytest.mark.asyncio
     async def test_file_agent_template_loads(self):
         sink = CollectingAuditSink()
-        guard = CallGuard.from_template("file-agent", audit_sink=sink)
+        guard = Edictum.from_template("file-agent", audit_sink=sink)
         assert guard is not None
 
     @pytest.mark.asyncio
     async def test_research_agent_template_loads(self):
         sink = CollectingAuditSink()
-        guard = CallGuard.from_template("research-agent", audit_sink=sink)
+        guard = Edictum.from_template("research-agent", audit_sink=sink)
         assert guard is not None
 
     @pytest.mark.asyncio
     async def test_devops_agent_template_loads(self):
         sink = CollectingAuditSink()
-        guard = CallGuard.from_template("devops-agent", audit_sink=sink)
+        guard = Edictum.from_template("devops-agent", audit_sink=sink)
         assert guard is not None
 
     @pytest.mark.asyncio
     async def test_file_agent_blocks_env_file(self):
         sink = CollectingAuditSink()
-        guard = CallGuard.from_template("file-agent", audit_sink=sink)
-        with pytest.raises(CallGuardDenied):
+        guard = Edictum.from_template("file-agent", audit_sink=sink)
+        with pytest.raises(EdictumDenied):
             await guard.run(
                 "read_file",
                 {"path": ".env"},
@@ -1058,8 +1058,8 @@ class TestTemplateLoading:
 
     @pytest.mark.asyncio
     async def test_invalid_template_name_raises(self):
-        with pytest.raises(Exception):  # CallGuardConfigError or similar
-            CallGuard.from_template("nonexistent-template")
+        with pytest.raises(Exception):  # EdictumConfigError or similar
+            Edictum.from_template("nonexistent-template")
 
 
 # ---------------------------------------------------------------------------
@@ -1076,13 +1076,13 @@ class TestMultipleContractsOnSameTool:
         (we don't need to evaluate the rest)."""
         path = write_yaml(DEVOPS_AGENT_YAML)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
 
         # deploy_service in production without role AND without ticket
         # Both prod-deploy-requires-senior and prod-requires-ticket match.
         # The first one evaluated should deny.
         no_creds = Principal(user_id="nobody", role="intern")
-        with pytest.raises(CallGuardDenied) as exc_info:
+        with pytest.raises(EdictumDenied) as exc_info:
             await guard.run(
                 "deploy_service",
                 {"service": "api"},
@@ -1111,7 +1111,7 @@ class TestFullLifecycle:
         yaml_content = DEVOPS_AGENT_YAML
         path = write_yaml(yaml_content)
         sink = CollectingAuditSink()
-        guard = CallGuard.from_yaml(str(path), audit_sink=sink)
+        guard = Edictum.from_yaml(str(path), audit_sink=sink)
         bundle_hash = expected_hash(yaml_content)
 
         # 2. Create a principal with v0.3.0 fields
@@ -1156,7 +1156,7 @@ class TestFullLifecycle:
                 principal=operator,
             )
             pytest.fail("Should have been denied")
-        except CallGuardDenied as e:
+        except EdictumDenied as e:
             assert ".env" in e.reason
 
         # 6. Verify denial audit

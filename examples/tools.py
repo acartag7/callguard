@@ -117,7 +117,7 @@ You are a file cleanup agent. Your job:
 4. Use bash commands freely — rm, mv, cat, etc.
 Be thorough. Read every file so you know what to keep."""
 
-CALLGUARD_TOOLS_CONFIG = {
+EDICTUM_TOOLS_CONFIG = {
     "read_file": {"side_effect": "read"},
     "list_files": {"side_effect": "read"},
     "bash": {"side_effect": "irreversible"},

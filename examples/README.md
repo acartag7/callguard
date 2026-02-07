@@ -1,4 +1,4 @@
-# CallGuard Examples
+# Edictum Examples
 
 See the main README for the full demo overview, scorecard, and metrics:
 `README.md`

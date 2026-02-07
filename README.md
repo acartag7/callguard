@@ -1,19 +1,19 @@
-# CallGuard
+# Edictum
 
-[![PyPI](https://img.shields.io/pypi/v/callguard)](https://pypi.org/project/callguard/)
-[![License](https://img.shields.io/pypi/l/callguard)](LICENSE)
-[![Python](https://img.shields.io/pypi/pyversions/callguard)](https://pypi.org/project/callguard/)
+[![PyPI](https://img.shields.io/pypi/v/edictum)](https://pypi.org/project/edictum/)
+[![License](https://img.shields.io/pypi/l/edictum)](LICENSE)
+[![Python](https://img.shields.io/pypi/pyversions/edictum)](https://pypi.org/project/edictum/)
 
 **Runtime contracts for AI agents.**
 
-AI agents make tool calls. Tool calls have side effects. Nobody governs what happens between "agent decides" and "tool executes." CallGuard is that governance layer — preconditions, postconditions, session limits, and a full audit trail, enforced at the point where decision becomes action.
+AI agents make tool calls. Tool calls have side effects. Nobody governs what happens between "agent decides" and "tool executes." Edictum is that governance layer — preconditions, postconditions, session limits, and a full audit trail, enforced at the point where decision becomes action.
 
 ## Show Me
 
 **contracts.yaml**
 
 ```yaml
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -39,15 +39,15 @@ contracts:
 
 ```python
 import asyncio
-from callguard import CallGuard, CallGuardDenied
+from edictum import Edictum, EdictumDenied
 
 async def main():
-    guard = CallGuard.from_yaml("contracts.yaml")
+    guard = Edictum.from_yaml("contracts.yaml")
 
     try:
         result = await guard.run("read_file", {"path": "/app/config.json"}, read_file_fn)
         print(result)
-    except CallGuardDenied as e:
+    except EdictumDenied as e:
         print(f"Denied: {e}")
 
 asyncio.run(main())
@@ -56,10 +56,10 @@ asyncio.run(main())
 **CLI**
 
 ```bash
-$ callguard validate contracts.yaml
+$ edictum validate contracts.yaml
 ✓ contracts.yaml — 1 contract (1 pre)
 
-$ callguard check contracts.yaml --tool read_file --args '{"path": ".env"}'
+$ edictum check contracts.yaml --tool read_file --args '{"path": ".env"}'
 ⛔ DENIED by block-sensitive-reads
    Message: Sensitive file '.env' blocked.
    Tags: secrets, dlp
@@ -69,9 +69,9 @@ $ callguard check contracts.yaml --tool read_file --args '{"path": ".env"}'
 **Framework integration (one adapter, same guard)**
 
 ```python
-from callguard.adapters.langchain import CallGuardMiddleware
+from edictum.adapters.langchain import EdictumMiddleware
 
-middleware = CallGuardMiddleware(guard)
+middleware = EdictumMiddleware(guard)
 # Wraps any LangChain tool — preconditions, audit, and session limits apply automatically
 ```
 
@@ -94,30 +94,30 @@ middleware = CallGuardMiddleware(guard)
 | API gateways / MCP proxies | Network transport | Yes — at the proxy | Partial |
 | Security scanners | Post-hoc analysis | No — detection only | Yes |
 | Manual if-statements | Per-tool, ad hoc | Yes — scattered logic | No |
-| **CallGuard** | **Tool call contracts** | **Yes — deterministic pipeline** | **Yes — structured + redacted** |
+| **Edictum** | **Tool call contracts** | **Yes — deterministic pipeline** | **Yes — structured + redacted** |
 
 ## Install
 
 ```bash
-pip install callguard              # core (zero deps)
-pip install callguard[yaml]        # + YAML contract engine
-pip install callguard[sinks]       # + webhook, Splunk, Datadog sinks
-pip install callguard[cli]         # + validate/check/diff/replay CLI
-pip install callguard[all]         # everything
+pip install edictum              # core (zero deps)
+pip install edictum[yaml]        # + YAML contract engine
+pip install edictum[sinks]       # + webhook, Splunk, Datadog sinks
+pip install edictum[cli]         # + validate/check/diff/replay CLI
+pip install edictum[all]         # everything
 ```
 
 ## Built-in Templates
 
 ```python
-guard = CallGuard.from_template("file-agent")      # secret file protection, destructive cmd blocking
-guard = CallGuard.from_template("research-agent")   # output PII detection, session limits
-guard = CallGuard.from_template("devops-agent")     # role gates, ticket requirements, bash safety
+guard = Edictum.from_template("file-agent")      # secret file protection, destructive cmd blocking
+guard = Edictum.from_template("research-agent")   # output PII detection, session limits
+guard = Edictum.from_template("devops-agent")     # role gates, ticket requirements, bash safety
 ```
 
 ## Links
 
-- [Documentation](https://acartag7.github.io/callguard/)
-- [GitHub](https://github.com/acartag7/callguard)
-- [PyPI](https://pypi.org/project/callguard/)
+- [Documentation](https://acartag7.github.io/edictum/)
+- [GitHub](https://github.com/acartag7/edictum)
+- [PyPI](https://pypi.org/project/edictum/)
 - [Changelog](CHANGELOG.md)
 - [License](LICENSE) (MIT)

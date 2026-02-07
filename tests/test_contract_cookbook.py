@@ -1,4 +1,4 @@
-"""Tests for the CallGuard Contract Cookbook (examples/contract_cookbook.py).
+"""Tests for the Edictum Contract Cookbook (examples/contract_cookbook.py).
 
 Covers all 4 parts:
   Part 1: Preconditions (10 contracts)
@@ -15,9 +15,9 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from callguard import CallGuard, create_envelope
-from callguard.session import Session
-from callguard.storage import MemoryBackend
+from edictum import Edictum, create_envelope
+from edictum.session import Session
+from edictum.storage import MemoryBackend
 
 # Add examples/ to import path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
@@ -88,31 +88,31 @@ class TestBlockSensitiveReads:
         envelope = create_envelope("read_file", {"path": "report.txt"})
         # when guard short-circuits, contract body doesn't run for non-matching paths
         # Simulate: the `when` lambda returns False, so the contract is skipped (pass)
-        when_fn = block_sensitive_reads._callguard_when
+        when_fn = block_sensitive_reads._edictum_when
         assert not when_fn(envelope)
 
     def test_fail_env_file(self):
         envelope = create_envelope("read_file", {"path": "/tmp/.env"})
-        assert block_sensitive_reads._callguard_when(envelope)
+        assert block_sensitive_reads._edictum_when(envelope)
         v = block_sensitive_reads(envelope)
         assert not v.passed
         assert ".env" in v.message
 
     def test_fail_credentials_json(self):
         envelope = create_envelope("read_file", {"path": "/home/user/credentials.json"})
-        assert block_sensitive_reads._callguard_when(envelope)
+        assert block_sensitive_reads._edictum_when(envelope)
         v = block_sensitive_reads(envelope)
         assert not v.passed
 
     def test_fail_id_rsa(self):
         envelope = create_envelope("read_file", {"path": "/home/user/.ssh/id_rsa"})
-        assert block_sensitive_reads._callguard_when(envelope)
+        assert block_sensitive_reads._edictum_when(envelope)
         v = block_sensitive_reads(envelope)
         assert not v.passed
 
     def test_fail_pem_file(self):
         envelope = create_envelope("read_file", {"path": "/certs/server.pem"})
-        assert block_sensitive_reads._callguard_when(envelope)
+        assert block_sensitive_reads._edictum_when(envelope)
 
 
 class TestAllowlistReadOnlyCommands:
@@ -158,34 +158,46 @@ class TestMakeRequireTargetDir:
         self.contract = make_require_target_dir("/tmp/organized/")
 
     def test_pass_correct_target(self):
-        envelope = create_envelope("move_file", {
-            "source": "/tmp/messy_files/f.txt",
-            "destination": "/tmp/organized/docs/f.txt",
-        })
+        envelope = create_envelope(
+            "move_file",
+            {
+                "source": "/tmp/messy_files/f.txt",
+                "destination": "/tmp/organized/docs/f.txt",
+            },
+        )
         assert self.contract(envelope).passed
 
     def test_fail_etc_passwd(self):
-        envelope = create_envelope("move_file", {
-            "source": "/tmp/f.txt",
-            "destination": "/etc/passwd",
-        })
+        envelope = create_envelope(
+            "move_file",
+            {
+                "source": "/tmp/f.txt",
+                "destination": "/etc/passwd",
+            },
+        )
         v = self.contract(envelope)
         assert not v.passed
         assert "outside" in v.message.lower()
 
     def test_fail_home_dir(self):
-        envelope = create_envelope("move_file", {
-            "source": "/tmp/f.txt",
-            "destination": "/home/user/file.txt",
-        })
+        envelope = create_envelope(
+            "move_file",
+            {
+                "source": "/tmp/f.txt",
+                "destination": "/home/user/file.txt",
+            },
+        )
         assert not self.contract(envelope).passed
 
     def test_pass_custom_base(self):
         contract = make_require_target_dir("/data/output/")
-        envelope = create_envelope("move_file", {
-            "source": "/tmp/f.txt",
-            "destination": "/data/output/results.csv",
-        })
+        envelope = create_envelope(
+            "move_file",
+            {
+                "source": "/tmp/f.txt",
+                "destination": "/data/output/results.csv",
+            },
+        )
         assert contract(envelope).passed
 
 
@@ -689,14 +701,14 @@ class TestResearchAgentContracts:
 
     def test_contains_all_contract_types(self):
         contracts = research_agent_contracts()
-        types = {getattr(c, "_callguard_type", None) for c in contracts}
+        types = {getattr(c, "_edictum_type", None) for c in contracts}
         assert "precondition" in types
         assert "postcondition" in types
         assert "session_contract" in types
 
-    def test_passable_to_callguard(self, null_sink):
+    def test_passable_to_edictum(self, null_sink):
         contracts = research_agent_contracts()
-        guard = CallGuard(
+        guard = Edictum(
             environment="test",
             contracts=contracts,
             audit_sink=null_sink,
@@ -714,9 +726,9 @@ class TestFileOrganizerContracts:
         contracts = file_organizer_contracts("/data/output/")
         assert len(contracts) > 0
 
-    def test_passable_to_callguard(self, null_sink):
+    def test_passable_to_edictum(self, null_sink):
         contracts = file_organizer_contracts()
-        guard = CallGuard(
+        guard = Edictum(
             environment="test",
             contracts=contracts,
             audit_sink=null_sink,
@@ -732,14 +744,14 @@ class TestDevopsAgentContracts:
 
     def test_contains_all_contract_types(self):
         contracts = devops_agent_contracts()
-        types = {getattr(c, "_callguard_type", None) for c in contracts}
+        types = {getattr(c, "_edictum_type", None) for c in contracts}
         assert "precondition" in types
         assert "postcondition" in types
         assert "session_contract" in types
 
-    def test_passable_to_callguard(self, null_sink):
+    def test_passable_to_edictum(self, null_sink):
         contracts = devops_agent_contracts()
-        guard = CallGuard(
+        guard = Edictum(
             environment="test",
             contracts=contracts,
             audit_sink=null_sink,

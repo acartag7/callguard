@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from callguard.storage import MemoryBackend
+from edictum.storage import MemoryBackend
 
 
 @pytest.fixture

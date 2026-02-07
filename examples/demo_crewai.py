@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""CrewAI + CallGuard demo — file cleanup agent.
+"""CrewAI + Edictum demo — file cleanup agent.
 
 Uses GPT-4o-mini via OpenAI, routed through the CrewAI adapter's
 _before_hook / _after_hook to show governance in action.
 
 Usage:
     bash setup.sh                # create /tmp/messy_files/
-    python demo_crewai.py        # WITHOUT CallGuard
-    python demo_crewai.py --guard    # WITH CallGuard
+    python demo_crewai.py        # WITHOUT Edictum
+    python demo_crewai.py --guard    # WITH Edictum
 
 Requires: OPENAI_API_KEY
 """
@@ -23,7 +23,7 @@ from types import SimpleNamespace
 
 from openai import OpenAI
 from tools import (
-    CALLGUARD_TOOLS_CONFIG,
+    EDICTUM_TOOLS_CONFIG,
     OPENAI_TOOLS,
     SYSTEM_PROMPT,
     TOOL_DISPATCH,
@@ -45,7 +45,7 @@ def run_without_guard(client: OpenAI) -> None:
     ]
 
     print("=" * 60)
-    print("  CrewAI Demo: WITHOUT CallGuard")
+    print("  CrewAI Demo: WITHOUT Edictum")
     print("=" * 60)
     print()
 
@@ -81,27 +81,27 @@ def run_without_guard(client: OpenAI) -> None:
 
     print(f"\n{'─' * 60}")
     print(f"Total calls: {call_count}  |  Audit: NONE  |  Secrets protection: NONE")
-    write_metrics_summary(metrics, "/tmp/callguard_crewai_metrics.json", {"mode": "without_guard"})
+    write_metrics_summary(metrics, "/tmp/edictum_crewai_metrics.json", {"mode": "without_guard"})
 
 
 async def run_with_guard(client: OpenAI) -> None:
-    """Run the same agent, governed by CallGuard via the CrewAI adapter."""
+    """Run the same agent, governed by Edictum via the CrewAI adapter."""
     from contracts import ALL_CONTRACTS
 
-    from callguard import CallGuard, FileAuditSink
-    from callguard.adapters.crewai import CrewAIAdapter
+    from edictum import Edictum, FileAuditSink
+    from edictum.adapters.crewai import CrewAIAdapter
 
-    audit_path = "/tmp/callguard_crewai_audit.jsonl"
-    metrics_path = "/tmp/callguard_crewai_metrics.json"
+    audit_path = "/tmp/edictum_crewai_audit.jsonl"
+    metrics_path = "/tmp/edictum_crewai_metrics.json"
     if os.path.exists(audit_path):
         os.remove(audit_path)
 
     metrics = DemoMetrics()
-    guard = CallGuard(
+    guard = Edictum(
         environment="demo",
         mode="enforce",
         contracts=ALL_CONTRACTS,
-        tools=CALLGUARD_TOOLS_CONFIG,
+        tools=EDICTUM_TOOLS_CONFIG,
         audit_sink=FileAuditSink(audit_path),
     )
     adapter = CrewAIAdapter(guard, session_id="demo-crewai")
@@ -112,7 +112,7 @@ async def run_with_guard(client: OpenAI) -> None:
     ]
 
     print("=" * 60)
-    print("  CrewAI Demo: WITH CallGuard")
+    print("  CrewAI Demo: WITH Edictum")
     print("=" * 60)
     print()
 
@@ -150,8 +150,8 @@ async def run_with_guard(client: OpenAI) -> None:
                 # but CrewAI's before-hook protocol only accepts bool | None,
                 # so we can't propagate the reason back to the agent here.
                 denied_count += 1
-                result = "DENIED by CallGuard policy"
-                print("  ** CALLGUARD DENIED\n")
+                result = "DENIED by Edictum policy"
+                print("  ** EDICTUM DENIED\n")
             else:
                 tool_start = now_s()
                 result = TOOL_DISPATCH[fn_name](args)
@@ -195,8 +195,8 @@ def _print_audit(path: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="CrewAI + CallGuard demo")
-    parser.add_argument("--guard", action="store_true", help="Enable CallGuard governance")
+    parser = argparse.ArgumentParser(description="CrewAI + Edictum demo")
+    parser.add_argument("--guard", action="store_true", help="Enable Edictum governance")
     args = parser.parse_args()
 
     if not os.environ.get("OPENAI_API_KEY"):

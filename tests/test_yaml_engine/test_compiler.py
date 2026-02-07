@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from callguard.envelope import Principal, create_envelope
-from callguard.yaml_engine.compiler import CompiledBundle, _expand_message, compile_contracts
-from callguard.yaml_engine.loader import load_bundle
+from edictum.envelope import Principal, create_envelope
+from edictum.yaml_engine.compiler import CompiledBundle, _expand_message, compile_contracts
+from edictum.yaml_engine.loader import load_bundle
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -34,9 +34,9 @@ class TestCompilePreConditions:
         bundle = _load_and_compile("valid_bundle.yaml")
         fn = bundle.preconditions[0]
         assert fn.__name__ == "block-sensitive-reads"
-        assert fn._callguard_type == "precondition"
-        assert fn._callguard_tool == "read_file"
-        assert fn._callguard_id == "block-sensitive-reads"
+        assert fn._edictum_type == "precondition"
+        assert fn._edictum_tool == "read_file"
+        assert fn._edictum_id == "block-sensitive-reads"
 
     def test_pre_contract_denies_matching(self):
         bundle = _load_and_compile("valid_bundle.yaml")
@@ -78,8 +78,8 @@ class TestCompilePostConditions:
         bundle = _load_and_compile("valid_bundle.yaml")
         fn = bundle.postconditions[0]
         assert fn.__name__ == "pii-in-output"
-        assert fn._callguard_type == "postcondition"
-        assert fn._callguard_tool == "*"
+        assert fn._edictum_type == "postcondition"
+        assert fn._edictum_tool == "*"
 
     def test_post_contract_warns_on_match(self):
         bundle = _load_and_compile("valid_bundle.yaml")
@@ -111,7 +111,7 @@ class TestCompileSessionContracts:
 class TestDisabledContracts:
     def test_disabled_contract_skipped(self):
         bundle_data = {
-            "apiVersion": "callguard/v1",
+            "apiVersion": "edictum/v1",
             "kind": "ContractBundle",
             "metadata": {"name": "test"},
             "defaults": {"mode": "enforce"},
@@ -131,7 +131,7 @@ class TestDisabledContracts:
 
     def test_enabled_contract_included(self):
         bundle_data = {
-            "apiVersion": "callguard/v1",
+            "apiVersion": "edictum/v1",
             "kind": "ContractBundle",
             "metadata": {"name": "test"},
             "defaults": {"mode": "enforce"},
@@ -156,11 +156,11 @@ class TestModeOverride:
         assert bundle.default_mode == "enforce"
         # Contract without mode override inherits default
         fn = bundle.preconditions[0]
-        assert fn._callguard_mode == "enforce"
+        assert fn._edictum_mode == "enforce"
 
     def test_per_rule_mode_override(self):
         bundle_data = {
-            "apiVersion": "callguard/v1",
+            "apiVersion": "edictum/v1",
             "kind": "ContractBundle",
             "metadata": {"name": "test"},
             "defaults": {"mode": "enforce"},
@@ -177,7 +177,7 @@ class TestModeOverride:
         }
         compiled = compile_contracts(bundle_data)
         fn = compiled.preconditions[0]
-        assert fn._callguard_mode == "observe"
+        assert fn._edictum_mode == "observe"
 
 
 class TestMessageTemplating:
@@ -222,7 +222,7 @@ class TestMessageTemplating:
 class TestThenMetadata:
     def test_then_metadata_in_verdict(self):
         bundle_data = {
-            "apiVersion": "callguard/v1",
+            "apiVersion": "edictum/v1",
             "kind": "ContractBundle",
             "metadata": {"name": "test"},
             "defaults": {"mode": "enforce"},
@@ -254,7 +254,7 @@ class TestThenMetadata:
 class TestPolicyError:
     def test_type_mismatch_sets_policy_error(self):
         bundle_data = {
-            "apiVersion": "callguard/v1",
+            "apiVersion": "edictum/v1",
             "kind": "ContractBundle",
             "metadata": {"name": "test"},
             "defaults": {"mode": "enforce"},
@@ -279,7 +279,7 @@ class TestPolicyError:
 class TestSessionLimitsMerging:
     def test_multiple_session_contracts_merge(self):
         bundle_data = {
-            "apiVersion": "callguard/v1",
+            "apiVersion": "edictum/v1",
             "kind": "ContractBundle",
             "metadata": {"name": "test"},
             "defaults": {"mode": "enforce"},

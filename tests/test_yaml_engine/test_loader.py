@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from callguard import CallGuardConfigError
-from callguard.yaml_engine.loader import BundleHash, load_bundle
+from edictum import EdictumConfigError
+from edictum.yaml_engine.loader import BundleHash, load_bundle
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -17,7 +17,7 @@ class TestLoadBundle:
 
     def test_valid_bundle_loads(self):
         data, bundle_hash = load_bundle(FIXTURES / "valid_bundle.yaml")
-        assert data["apiVersion"] == "callguard/v1"
+        assert data["apiVersion"] == "edictum/v1"
         assert data["kind"] == "ContractBundle"
         assert data["metadata"]["name"] == "test-bundle"
         assert len(data["contracts"]) == 3
@@ -64,15 +64,15 @@ class TestSchemaValidation:
     """Tests for JSON Schema validation failures."""
 
     def test_missing_apiversion(self):
-        with pytest.raises(CallGuardConfigError, match="Schema validation failed"):
+        with pytest.raises(EdictumConfigError, match="Schema validation failed"):
             load_bundle(FIXTURES / "invalid_missing_apiversion.yaml")
 
     def test_bad_effect_on_post(self):
-        with pytest.raises(CallGuardConfigError, match="Schema validation failed"):
+        with pytest.raises(EdictumConfigError, match="Schema validation failed"):
             load_bundle(FIXTURES / "invalid_bad_effect.yaml")
 
     def test_empty_contracts(self):
-        with pytest.raises(CallGuardConfigError, match="Schema validation failed"):
+        with pytest.raises(EdictumConfigError, match="Schema validation failed"):
             load_bundle(FIXTURES / "invalid_empty_contracts.yaml")
 
     def test_file_not_found(self):
@@ -84,7 +84,7 @@ class TestDuplicateIdValidation:
     """Tests for duplicate contract ID detection."""
 
     def test_duplicate_ids_rejected(self):
-        with pytest.raises(CallGuardConfigError, match="Duplicate contract id"):
+        with pytest.raises(EdictumConfigError, match="Duplicate contract id"):
             load_bundle(FIXTURES / "invalid_duplicate_ids.yaml")
 
 
@@ -92,7 +92,7 @@ class TestRegexValidation:
     """Tests for regex pattern validation at load time."""
 
     def test_invalid_regex_rejected(self):
-        with pytest.raises(CallGuardConfigError, match="Invalid regex pattern"):
+        with pytest.raises(EdictumConfigError, match="Invalid regex pattern"):
             load_bundle(FIXTURES / "invalid_bad_regex.yaml")
 
     def test_valid_regex_accepted(self):
@@ -108,11 +108,11 @@ class TestYamlParseErrors:
     def test_invalid_yaml_syntax(self, tmp_path):
         bad = tmp_path / "bad.yaml"
         bad.write_text("{\n  invalid: yaml: syntax:\n}")
-        with pytest.raises(CallGuardConfigError, match="YAML parse error"):
+        with pytest.raises(EdictumConfigError, match="YAML parse error"):
             load_bundle(bad)
 
     def test_non_mapping_yaml(self, tmp_path):
         scalar = tmp_path / "scalar.yaml"
         scalar.write_text("just a string")
-        with pytest.raises(CallGuardConfigError, match="YAML document must be a mapping"):
+        with pytest.raises(EdictumConfigError, match="YAML document must be a mapping"):
             load_bundle(scalar)

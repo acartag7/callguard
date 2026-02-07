@@ -1,11 +1,11 @@
 # Adapter Usage Guide
 
-Code snippets for plugging CallGuard into each supported framework. Every adapter takes the same two arguments:
+Code snippets for plugging Edictum into each supported framework. Every adapter takes the same two arguments:
 
 ```python
-from callguard import CallGuard, deny_sensitive_reads, OperationLimits, precondition, Verdict
+from edictum import Edictum, deny_sensitive_reads, OperationLimits, precondition, Verdict
 
-guard = CallGuard(
+guard = Edictum(
     contracts=[deny_sensitive_reads()],
     limits=OperationLimits(max_tool_calls=100),
 )
@@ -16,11 +16,11 @@ guard = CallGuard(
 ## LangChain
 
 ```bash
-pip install callguard[langchain]
+pip install edictum[langchain]
 ```
 
 ```python
-from callguard.adapters.langchain import LangChainAdapter
+from edictum.adapters.langchain import LangChainAdapter
 
 adapter = LangChainAdapter(guard, session_id="session-lc")
 middleware = adapter.as_middleware()
@@ -40,11 +40,11 @@ agent = create_react_agent(
 ## CrewAI
 
 ```bash
-pip install callguard[crewai]
+pip install edictum[crewai]
 ```
 
 ```python
-from callguard.adapters.crewai import CrewAIAdapter
+from edictum.adapters.crewai import CrewAIAdapter
 
 adapter = CrewAIAdapter(guard, session_id="session-crew")
 adapter.register()  # registers global before/after hooks
@@ -61,11 +61,11 @@ crew.kickoff()
 ## Agno
 
 ```bash
-pip install callguard[agno]
+pip install edictum[agno]
 ```
 
 ```python
-from callguard.adapters.agno import AgnoAdapter
+from edictum.adapters.agno import AgnoAdapter
 
 adapter = AgnoAdapter(guard, session_id="session-agno")
 hook = adapter.as_tool_hook()
@@ -85,12 +85,12 @@ agent = Agent(
 ## Semantic Kernel
 
 ```bash
-pip install callguard[semantic-kernel]
+pip install edictum[semantic-kernel]
 ```
 
 ```python
 from semantic_kernel import Kernel
-from callguard.adapters.semantic_kernel import SemanticKernelAdapter
+from edictum.adapters.semantic_kernel import SemanticKernelAdapter
 
 kernel = Kernel()
 # ... add plugins/functions to kernel ...
@@ -109,12 +109,12 @@ result = await kernel.invoke(function)
 ## OpenAI Agents SDK
 
 ```bash
-pip install callguard[openai-agents]
+pip install edictum[openai-agents]
 ```
 
 ```python
 from agents import Agent
-from callguard.adapters.openai_agents import OpenAIAgentsAdapter
+from edictum.adapters.openai_agents import OpenAIAgentsAdapter
 
 adapter = OpenAIAgentsAdapter(guard, session_id="session-oai")
 input_gr, output_gr = adapter.as_guardrails()
@@ -135,12 +135,12 @@ agent = Agent(
 ## Claude Agent SDK
 
 ```bash
-pip install callguard[yaml]
+pip install edictum[yaml]
 ```
 
 ```python
 from claude_agent_sdk import Agent
-from callguard.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
+from edictum.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
 
 adapter = ClaudeAgentSDKAdapter(guard, session_id="session-claude")
 hooks = adapter.to_sdk_hooks()
@@ -160,7 +160,7 @@ agent = Agent(
 
 ### Custom contracts
 
-All adapters share the same `CallGuard` instance, so contracts work identically:
+All adapters share the same `Edictum` instance, so contracts work identically:
 
 ```python
 @precondition("bash")
@@ -172,7 +172,7 @@ def no_destructive_commands(envelope):
         )
     return Verdict.pass_()
 
-guard = CallGuard(contracts=[no_destructive_commands])
+guard = Edictum(contracts=[no_destructive_commands])
 ```
 
 ### Observe mode
@@ -180,7 +180,7 @@ guard = CallGuard(contracts=[no_destructive_commands])
 Run the full pipeline without blocking. Denials are logged as `CALL_WOULD_DENY`:
 
 ```python
-guard = CallGuard(
+guard = Edictum(
     mode="observe",
     contracts=[...],
     audit_sink=FileAuditSink("audit.jsonl"),
@@ -190,9 +190,9 @@ guard = CallGuard(
 ### Audit to file
 
 ```python
-from callguard import CallGuard, FileAuditSink
+from edictum import Edictum, FileAuditSink
 
-guard = CallGuard(
+guard = Edictum(
     contracts=[...],
     audit_sink=FileAuditSink("audit.jsonl"),
 )

@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from callguard.audit import AuditAction, AuditEvent, RedactionPolicy
-from callguard.sinks.splunk import SplunkHECSink
+from edictum.audit import AuditAction, AuditEvent, RedactionPolicy
+from edictum.sinks.splunk import SplunkHECSink
 
 
 @pytest.fixture
@@ -67,13 +67,13 @@ class TestSplunkHECSink:
         )
         fake_session = _FakeSession()
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             await sink.emit(event)
 
         assert len(fake_session.calls) == 1
         body = json.loads(fake_session.calls[0]["data"])
         assert "event" in body
-        assert body["sourcetype"] == "callguard"
+        assert body["sourcetype"] == "edictum"
         assert body["index"] == "main"
         assert body["event"]["tool_name"] == "Read"
         assert body["event"]["action"] == "call_allowed"
@@ -86,7 +86,7 @@ class TestSplunkHECSink:
         )
         fake_session = _FakeSession()
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             await sink.emit(event)
 
         headers = fake_session.calls[0]["headers"]
@@ -98,16 +98,16 @@ class TestSplunkHECSink:
             url="https://splunk.example.com:8088/services/collector",
             token="my-hec-token",
             index="security",
-            sourcetype="callguard:audit",
+            sourcetype="edictum:audit",
         )
         fake_session = _FakeSession()
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             await sink.emit(event)
 
         body = json.loads(fake_session.calls[0]["data"])
         assert body["index"] == "security"
-        assert body["sourcetype"] == "callguard:audit"
+        assert body["sourcetype"] == "edictum:audit"
 
     async def test_redaction_policy_applied(self):
         redaction = RedactionPolicy()
@@ -123,7 +123,7 @@ class TestSplunkHECSink:
         )
         fake_session = _FakeSession()
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             await sink.emit(event)
 
         body = json.loads(fake_session.calls[0]["data"])
@@ -138,7 +138,7 @@ class TestSplunkHECSink:
         )
         fake_session = _FakeSession(_FakeResponse(500))
 
-        with patch("callguard.sinks._base.aiohttp.ClientSession", return_value=fake_session):
+        with patch("edictum.sinks._base.aiohttp.ClientSession", return_value=fake_session):
             # Should not raise — retries then logs error
             await sink.emit(event)
 

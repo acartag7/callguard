@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "callguard"
-version = "0.3.0"
+name = "edictum"
+version = "0.4.0"
 description = "Runtime safety for AI agents. Stop agents before they break things."
 readme = "README.md"
 license = "MIT"
@@ -29,8 +29,8 @@ agno = ["agno>=1.0"]
 semantic-kernel = ["semantic-kernel>=1.0"]
 openai-agents = ["openai-agents>=0.1"]
 sinks = ["aiohttp>=3.9"]
-cli = ["click>=8.0", "rich>=13.0", "callguard[yaml]"]
-all = ["callguard[yaml,otel,sinks,cli,langchain,crewai,agno,semantic-kernel,openai-agents]"]
+cli = ["click>=8.0", "rich>=13.0", "edictum[yaml]"]
+all = ["edictum[yaml,otel,sinks,cli,langchain,crewai,agno,semantic-kernel,openai-agents]"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
@@ -39,10 +39,11 @@ dev = [
 ]
 
 [project.scripts]
-callguard = "callguard.cli.main:cli"
+edictum = "edictum.cli.main:cli"
+edict = "edictum.cli.main:cli"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/callguard"]
+packages = ["src/edictum"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Semantic Kernel + CallGuard demo — file cleanup agent.
+"""Semantic Kernel + Edictum demo — file cleanup agent.
 
 Uses GPT-4o-mini via OpenAI, routed through the Semantic Kernel adapter's
 _pre / _post hooks to show governance in action.
 
 Usage:
     bash setup.sh                       # create /tmp/messy_files/
-    python demo_semantic_kernel.py      # WITHOUT CallGuard
-    python demo_semantic_kernel.py --guard  # WITH CallGuard
+    python demo_semantic_kernel.py      # WITHOUT Edictum
+    python demo_semantic_kernel.py --guard  # WITH Edictum
 
 Requires: OPENAI_API_KEY
 """
@@ -23,7 +23,7 @@ import uuid
 
 from openai import OpenAI
 from tools import (
-    CALLGUARD_TOOLS_CONFIG,
+    EDICTUM_TOOLS_CONFIG,
     OPENAI_TOOLS,
     SYSTEM_PROMPT,
     TOOL_DISPATCH,
@@ -45,7 +45,7 @@ def run_without_guard(client: OpenAI) -> None:
     ]
 
     print("=" * 60)
-    print("  Semantic Kernel Demo: WITHOUT CallGuard")
+    print("  Semantic Kernel Demo: WITHOUT Edictum")
     print("=" * 60)
     print()
 
@@ -81,31 +81,31 @@ def run_without_guard(client: OpenAI) -> None:
 
     print(f"\n{'─' * 60}")
     print(f"Total calls: {call_count}  |  Audit: NONE  |  Secrets protection: NONE")
-    write_metrics_summary(metrics, "/tmp/callguard_sk_metrics.json", {"mode": "without_guard"})
+    write_metrics_summary(metrics, "/tmp/edictum_sk_metrics.json", {"mode": "without_guard"})
 
 
 async def run_with_guard(client: OpenAI) -> None:
-    """Run the same agent, governed by CallGuard via the Semantic Kernel adapter.
+    """Run the same agent, governed by Edictum via the Semantic Kernel adapter.
 
     SK uses a filter pattern: _pre(name, args, call_id) -> {} | "DENIED: ...",
     then _post(call_id, result) after execution.
     """
     from contracts import ALL_CONTRACTS
 
-    from callguard import CallGuard, FileAuditSink
-    from callguard.adapters.semantic_kernel import SemanticKernelAdapter
+    from edictum import Edictum, FileAuditSink
+    from edictum.adapters.semantic_kernel import SemanticKernelAdapter
 
-    audit_path = "/tmp/callguard_sk_audit.jsonl"
-    metrics_path = "/tmp/callguard_sk_metrics.json"
+    audit_path = "/tmp/edictum_sk_audit.jsonl"
+    metrics_path = "/tmp/edictum_sk_metrics.json"
     if os.path.exists(audit_path):
         os.remove(audit_path)
 
     metrics = DemoMetrics()
-    guard = CallGuard(
+    guard = Edictum(
         environment="demo",
         mode="enforce",
         contracts=ALL_CONTRACTS,
-        tools=CALLGUARD_TOOLS_CONFIG,
+        tools=EDICTUM_TOOLS_CONFIG,
         audit_sink=FileAuditSink(audit_path),
     )
     adapter = SemanticKernelAdapter(guard, session_id="demo-sk")
@@ -116,7 +116,7 @@ async def run_with_guard(client: OpenAI) -> None:
     ]
 
     print("=" * 60)
-    print("  Semantic Kernel Demo: WITH CallGuard")
+    print("  Semantic Kernel Demo: WITH Edictum")
     print("=" * 60)
     print()
 
@@ -152,7 +152,7 @@ async def run_with_guard(client: OpenAI) -> None:
             if isinstance(pre_result, str):
                 denied_count += 1
                 result = pre_result
-                print(f"  ** CALLGUARD: {result}\n")
+                print(f"  ** EDICTUM: {result}\n")
             else:
                 tool_start = now_s()
                 result = TOOL_DISPATCH[fn_name](args)
@@ -189,8 +189,8 @@ def _print_audit(path: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Semantic Kernel + CallGuard demo")
-    parser.add_argument("--guard", action="store_true", help="Enable CallGuard governance")
+    parser = argparse.ArgumentParser(description="Semantic Kernel + Edictum demo")
+    parser.add_argument("--guard", action="store_true", help="Enable Edictum governance")
     args = parser.parse_args()
 
     if not os.environ.get("OPENAI_API_KEY"):

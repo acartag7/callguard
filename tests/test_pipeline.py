@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from callguard import CallGuard, OperationLimits, Verdict, precondition, session_contract
-from callguard.envelope import SideEffect, create_envelope
-from callguard.hooks import HookDecision
-from callguard.pipeline import GovernancePipeline
-from callguard.session import Session
-from callguard.storage import MemoryBackend
-from callguard.types import HookRegistration
+from edictum import Edictum, OperationLimits, Verdict, precondition, session_contract
+from edictum.envelope import SideEffect, create_envelope
+from edictum.hooks import HookDecision
+from edictum.pipeline import GovernancePipeline
+from edictum.session import Session
+from edictum.storage import MemoryBackend
+from edictum.types import HookRegistration
 from tests.conftest import NullAuditSink
 
 
@@ -31,7 +31,7 @@ def make_guard(**kwargs):
         "backend": MemoryBackend(),
     }
     defaults.update(kwargs)
-    return CallGuard(**defaults)
+    return Edictum(**defaults)
 
 
 class TestPreExecute:
@@ -247,7 +247,7 @@ class TestPostExecute:
         assert decision.warnings == []
 
     async def test_postcondition_failure_pure_tool(self, session):
-        from callguard.contracts import postcondition as postc
+        from edictum.contracts import postcondition as postc
 
         @postc("TestTool")
         def check_result(envelope, result):
@@ -267,7 +267,7 @@ class TestPostExecute:
         assert "consider retrying" in decision.warnings[0].lower()
 
     async def test_postcondition_failure_write_tool(self, session):
-        from callguard.contracts import postcondition as postc
+        from edictum.contracts import postcondition as postc
 
         @postc("WriteTool")
         def check_write(envelope, result):
@@ -320,4 +320,4 @@ class TestObserveMode:
         # Pipeline still returns deny (mode handling is in adapter/guard.run)
         decision = await pipeline.pre_execute(envelope, session)
         assert decision.action == "deny"
-        # The observe mode conversion happens in the adapter/CallGuard.run(), not pipeline
+        # The observe mode conversion happens in the adapter/Edictum.run(), not pipeline

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from callguard.contracts import Verdict, postcondition, precondition, session_contract
+from edictum.contracts import Verdict, postcondition, precondition, session_contract
 
 
 class TestVerdict:
@@ -39,9 +39,9 @@ class TestPrecondition:
         def my_check(envelope):
             return Verdict.pass_()
 
-        assert my_check._callguard_type == "precondition"
-        assert my_check._callguard_tool == "Bash"
-        assert my_check._callguard_when is None
+        assert my_check._edictum_type == "precondition"
+        assert my_check._edictum_tool == "Bash"
+        assert my_check._edictum_when is None
 
     def test_decorator_with_when(self):
         def when_fn(e):
@@ -51,14 +51,14 @@ class TestPrecondition:
         def my_check(envelope):
             return Verdict.pass_()
 
-        assert my_check._callguard_when is when_fn
+        assert my_check._edictum_when is when_fn
 
     def test_wildcard_tool(self):
         @precondition("*")
         def check_all(envelope):
             return Verdict.pass_()
 
-        assert check_all._callguard_tool == "*"
+        assert check_all._edictum_tool == "*"
 
 
 class TestPostcondition:
@@ -67,8 +67,8 @@ class TestPostcondition:
         def verify_output(envelope, result):
             return Verdict.pass_()
 
-        assert verify_output._callguard_type == "postcondition"
-        assert verify_output._callguard_tool == "Write"
+        assert verify_output._edictum_type == "postcondition"
+        assert verify_output._edictum_tool == "Write"
 
 
 class TestSessionContract:
@@ -77,4 +77,4 @@ class TestSessionContract:
         async def max_ops(session):
             return Verdict.pass_()
 
-        assert max_ops._callguard_type == "session_contract"
+        assert max_ops._edictum_type == "session_contract"

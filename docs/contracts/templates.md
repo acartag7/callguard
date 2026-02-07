@@ -1,28 +1,28 @@
 # Built-in Templates
 
-CallGuard ships three built-in contract templates for common agent patterns. Templates are complete, production-ready YAML bundles that you can load directly or use as a starting point for your own policies.
+Edictum ships three built-in contract templates for common agent patterns. Templates are complete, production-ready YAML bundles that you can load directly or use as a starting point for your own policies.
 
 ---
 
 ## Loading a Template
 
-Use `CallGuard.from_template()` to load a built-in template by name:
+Use `Edictum.from_template()` to load a built-in template by name:
 
 ```python
-from callguard import CallGuard
+from edictum import Edictum
 
-guard = CallGuard.from_template("file-agent")
+guard = Edictum.from_template("file-agent")
 ```
 
-This is equivalent to calling `CallGuard.from_yaml()` on the template's YAML file, which means it goes through the same validation, compilation, and policy hashing path as any custom bundle.
+This is equivalent to calling `Edictum.from_yaml()` on the template's YAML file, which means it goes through the same validation, compilation, and policy hashing path as any custom bundle.
 
 All `from_yaml()` options are available on `from_template()`:
 
 ```python
-from callguard import CallGuard
-from callguard.audit import FileAuditSink, RedactionPolicy
+from edictum import Edictum
+from edictum.audit import FileAuditSink, RedactionPolicy
 
-guard = CallGuard.from_template(
+guard = Edictum.from_template(
     "devops-agent",
     environment="staging",
     mode="observe",                                # shadow-test before enforcing
@@ -56,7 +56,7 @@ The file-agent template protects against the two most common file-handling risks
 ### Full YAML
 
 ```yaml
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -128,7 +128,7 @@ The research-agent template is designed for agents that gather information from 
 ### Full YAML
 
 ```yaml
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -201,7 +201,7 @@ The devops-agent template is the most comprehensive built-in policy. It combines
 ### Full YAML
 
 ```yaml
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -303,15 +303,15 @@ contracts:
 
 Templates are a starting point. To customize a template:
 
-1. Load the template and inspect the YAML source in `src/callguard/yaml_engine/templates/`.
+1. Load the template and inspect the YAML source in `src/edictum/yaml_engine/templates/`.
 2. Copy the template to your project and modify it.
-3. Load your modified version with `CallGuard.from_yaml()`:
+3. Load your modified version with `Edictum.from_yaml()`:
 
 ```python
-from callguard import CallGuard
+from edictum import Edictum
 
 # Load your customized version
-guard = CallGuard.from_yaml("contracts/my-devops-policy.yaml")
+guard = Edictum.from_yaml("contracts/my-devops-policy.yaml")
 ```
 
 Common customizations:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Setup script for CallGuard live demo.
+# Setup script for Edictum live demo.
 # Creates /tmp/messy_files/ with realistic trap files an agent might encounter.
 
 set -euo pipefail

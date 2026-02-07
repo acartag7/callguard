@@ -1,32 +1,32 @@
 # CLI Reference
 
-CallGuard ships a command-line interface for validating contract files, dry-running
+Edictum ships a command-line interface for validating contract files, dry-running
 tool calls, diffing policy versions, and replaying audit logs against updated contracts.
 
 ## Installation
 
 ```bash
-pip install callguard[cli]
+pip install edictum[cli]
 ```
 
 This pulls in [Click](https://click.palletsprojects.com/) and
-[Rich](https://rich.readthedocs.io/) as additional dependencies. The `callguard`
+[Rich](https://rich.readthedocs.io/) as additional dependencies. The `edictum`
 command becomes available on your `PATH` via the entry point defined in `pyproject.toml`
-(`callguard.cli.main:cli`).
+(`edictum.cli.main:cli`).
 
 ---
 
 ## Commands
 
-### `callguard validate`
+### `edictum validate`
 
-Parse one or more YAML contract bundle files, validate them against the CallGuard JSON
+Parse one or more YAML contract bundle files, validate them against the Edictum JSON
 Schema, compile all regex patterns, check for unique contract IDs, and report any errors.
 
 **Usage**
 
 ```
-callguard validate FILES...
+edictum validate FILES...
 ```
 
 Takes one or more file paths as positional arguments. Each file is validated independently.
@@ -34,7 +34,7 @@ Takes one or more file paths as positional arguments. Each file is validated ind
 **Example**
 
 ```
-$ callguard validate contracts/production.yaml
+$ edictum validate contracts/production.yaml
 
   production.yaml — 12 contracts (2 post, 8 pre, 2 session)
 ```
@@ -42,7 +42,7 @@ $ callguard validate contracts/production.yaml
 When validation fails:
 
 ```
-$ callguard validate contracts/broken.yaml
+$ edictum validate contracts/broken.yaml
 
   broken.yaml — Invalid YAML: ...
 ```
@@ -51,7 +51,7 @@ Exit codes: `0` on success, `1` on validation errors.
 
 ---
 
-### `callguard check`
+### `edictum check`
 
 Dry-run a single tool call envelope against your contracts. Builds a `ToolEnvelope`
 from the provided tool name and arguments, evaluates all matching preconditions, and
@@ -60,7 +60,7 @@ prints the verdict. No tool actually executes.
 **Usage**
 
 ```
-callguard check <file.yaml> --tool <name> --args '<json>'
+edictum check <file.yaml> --tool <name> --args '<json>'
 ```
 
 **Options**
@@ -77,7 +77,7 @@ callguard check <file.yaml> --tool <name> --args '<json>'
 **Example -- allowed call**
 
 ```
-$ callguard check contracts/production.yaml \
+$ edictum check contracts/production.yaml \
     --tool read_file \
     --args '{"path": "/app/config.json"}'
 
@@ -88,7 +88,7 @@ ALLOWED
 **Example -- denied call with principal**
 
 ```
-$ callguard check contracts/production.yaml \
+$ edictum check contracts/production.yaml \
     --tool read_file \
     --args '{"path": "/home/user/.env"}' \
     --principal-role sre \
@@ -105,7 +105,7 @@ Exit codes: `0` on allow, `1` on deny, `2` on invalid JSON.
 
 ---
 
-### `callguard diff`
+### `edictum diff`
 
 Compare two YAML contract files and report which contract IDs were added, removed,
 or changed.
@@ -113,13 +113,13 @@ or changed.
 **Usage**
 
 ```
-callguard diff <old.yaml> <new.yaml>
+edictum diff <old.yaml> <new.yaml>
 ```
 
 **Example**
 
 ```
-$ callguard diff contracts/v1.yaml contracts/v2.yaml
+$ edictum diff contracts/v1.yaml contracts/v2.yaml
 
 Added:
   + require-ticket-ref (type: pre)
@@ -137,7 +137,7 @@ Exit codes: `0` if identical, `1` if differences found.
 
 ---
 
-### `callguard replay`
+### `edictum replay`
 
 Replay an audit log (JSONL) against a contract file and report what would change.
 Each event in the audit log is re-evaluated as if the new contracts were in effect at
@@ -147,7 +147,7 @@ would have been treated differently?"
 **Usage**
 
 ```
-callguard replay <file.yaml> --audit-log <events.jsonl>
+edictum replay <file.yaml> --audit-log <events.jsonl>
 ```
 
 **Options**
@@ -160,7 +160,7 @@ callguard replay <file.yaml> --audit-log <events.jsonl>
 **Example**
 
 ```
-$ callguard replay contracts/v2.yaml --audit-log audit/last-week.jsonl
+$ edictum replay contracts/v2.yaml --audit-log audit/last-week.jsonl
 
 Replayed 1247 events, 2 would change
 
@@ -182,16 +182,16 @@ All commands return structured exit codes suitable for pipeline gating:
 ```yaml
 # GitHub Actions example
 - name: Validate contracts
-  run: callguard validate contracts/production.yaml
+  run: edictum validate contracts/production.yaml
 
 - name: Diff against main
   run: |
     git show main:contracts/production.yaml > /tmp/old.yaml
-    callguard diff /tmp/old.yaml contracts/production.yaml
+    edictum diff /tmp/old.yaml contracts/production.yaml
 
 - name: Replay last week's audit log
   run: |
-    callguard replay contracts/production.yaml \
+    edictum replay contracts/production.yaml \
       --audit-log audit/last-week.jsonl \
       --output replay-report.jsonl
 ```

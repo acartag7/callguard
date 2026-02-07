@@ -1,9 +1,9 @@
 # Adapter Overview
 
-CallGuard ships six framework adapters that connect the governance pipeline to
+Edictum ships six framework adapters that connect the governance pipeline to
 popular AI agent frameworks. Every adapter follows the same design principle:
 **adapters are thin translation layers**. They convert framework-specific events
-into CallGuard envelopes and translate governance decisions back into the format
+into Edictum envelopes and translate governance decisions back into the format
 each framework expects. The adapters contain zero governance logic -- all
 allow/deny decisions come from the `GovernancePipeline`.
 
@@ -53,13 +53,13 @@ phase runs postconditions and records audit events for the outcome.
 All six adapters share the same constructor signature:
 
 ```python
-from callguard import CallGuard, Principal
+from edictum import Edictum, Principal
 
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 principal = Principal(user_id="alice", role="sre", ticket_ref="JIRA-1234")
 
 adapter = SomeAdapter(
-    guard=guard,                    # required -- the CallGuard instance
+    guard=guard,                    # required -- the Edictum instance
     session_id="my-session-123",    # optional -- auto-generated UUID if omitted
     principal=principal,            # optional -- identity context for audit
 )
@@ -69,7 +69,7 @@ adapter = SomeAdapter(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `guard` | `CallGuard` | required | The configured CallGuard instance holding contracts, limits, and sinks |
+| `guard` | `Edictum` | required | The configured Edictum instance holding contracts, limits, and sinks |
 | `session_id` | `str \| None` | auto UUID | Groups related tool calls into a session for limit tracking |
 | `principal` | `Principal \| None` | `None` | Identity context attached to every audit event in this session |
 
@@ -92,12 +92,12 @@ without enforcement to validate behavior before switching to `mode="enforce"`.
 
 | Framework | Adapter Class | Import | Integration Method | Returns |
 |-----------|--------------|--------|-------------------|---------|
-| Claude Agent SDK | `ClaudeAgentSDKAdapter` | `callguard.adapters.claude_agent_sdk` | `adapter.to_sdk_hooks()` | `dict` with `pre_tool_use` and `post_tool_use` async functions |
-| LangChain | `LangChainAdapter` | `callguard.adapters.langchain` | `adapter.as_middleware()` | `@wrap_tool_call` decorated function |
-| CrewAI | `CrewAIAdapter` | `callguard.adapters.crewai` | `adapter.register()` | Registers global before/after hooks (no return value) |
-| Agno | `AgnoAdapter` | `callguard.adapters.agno` | `adapter.as_tool_hook()` | Wrap-around function for `tool_hooks` parameter |
-| Semantic Kernel | `SemanticKernelAdapter` | `callguard.adapters.semantic_kernel` | `adapter.register(kernel)` | Registers `AUTO_FUNCTION_INVOCATION` filter on kernel |
-| OpenAI Agents SDK | `OpenAIAgentsAdapter` | `callguard.adapters.openai_agents` | `adapter.as_guardrails()` | `(input_guardrail, output_guardrail)` tuple |
+| Claude Agent SDK | `ClaudeAgentSDKAdapter` | `edictum.adapters.claude_agent_sdk` | `adapter.to_sdk_hooks()` | `dict` with `pre_tool_use` and `post_tool_use` async functions |
+| LangChain | `LangChainAdapter` | `edictum.adapters.langchain` | `adapter.as_middleware()` | `@wrap_tool_call` decorated function |
+| CrewAI | `CrewAIAdapter` | `edictum.adapters.crewai` | `adapter.register()` | Registers global before/after hooks (no return value) |
+| Agno | `AgnoAdapter` | `edictum.adapters.agno` | `adapter.as_tool_hook()` | Wrap-around function for `tool_hooks` parameter |
+| Semantic Kernel | `SemanticKernelAdapter` | `edictum.adapters.semantic_kernel` | `adapter.register(kernel)` | Registers `AUTO_FUNCTION_INVOCATION` filter on kernel |
+| OpenAI Agents SDK | `OpenAIAgentsAdapter` | `edictum.adapters.openai_agents` | `adapter.as_guardrails()` | `(input_guardrail, output_guardrail)` tuple |
 
 ## Choosing an Adapter
 
@@ -116,7 +116,7 @@ Pick the adapter that matches your agent framework:
 - **OpenAI Agents SDK** -- You are using the OpenAI Agents SDK and want to wire
   governance through the `tool_input_guardrail` / `tool_output_guardrail` system.
 
-If your framework is not listed, use `CallGuard.run()` directly -- it provides
+If your framework is not listed, use `Edictum.run()` directly -- it provides
 the same governance pipeline without any adapter:
 
 ```python
@@ -132,13 +132,13 @@ result = await guard.run(
 Each adapter has an optional dependency group in `pyproject.toml`:
 
 ```bash
-pip install callguard[langchain]        # LangChain adapter
-pip install callguard[crewai]           # CrewAI adapter
-pip install callguard[agno]             # Agno adapter
-pip install callguard[semantic-kernel]  # Semantic Kernel adapter
-pip install callguard[openai-agents]    # OpenAI Agents SDK adapter
-pip install callguard[yaml]             # YAML contract engine (no framework deps)
-pip install callguard[all]              # Everything
+pip install edictum[langchain]        # LangChain adapter
+pip install edictum[crewai]           # CrewAI adapter
+pip install edictum[agno]             # Agno adapter
+pip install edictum[semantic-kernel]  # Semantic Kernel adapter
+pip install edictum[openai-agents]    # OpenAI Agents SDK adapter
+pip install edictum[yaml]             # YAML contract engine (no framework deps)
+pip install edictum[all]              # Everything
 ```
 
-The Claude Agent SDK adapter has no extra dependencies beyond `callguard[yaml]`.
+The Claude Agent SDK adapter has no extra dependencies beyond `edictum[yaml]`.
