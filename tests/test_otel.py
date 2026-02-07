@@ -144,6 +144,78 @@ class TestOTelIntegration:
         # Should not raise
         configure_otel(service_name="test-agent", endpoint="http://localhost:4317")
 
+    def test_configure_otel_skips_if_provider_set(self):
+        """configure_otel should no-op when a TracerProvider already exists."""
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider
+
+        from edictum.otel import configure_otel
+
+        _reset_otel_provider()
+
+        # Pre-install a provider (simulating host app setup)
+        existing = TracerProvider()
+        trace.set_tracer_provider(existing)
+
+        # configure_otel should skip because provider already set
+        configure_otel(service_name="should-not-apply")
+
+        # Provider should still be the original one
+        assert trace.get_tracer_provider() is existing
+
+    def test_configure_otel_force_overrides_existing(self):
+        """configure_otel(force=True) should replace an existing provider."""
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider
+
+        from edictum.otel import configure_otel
+
+        _reset_otel_provider()
+
+        existing = TracerProvider()
+        trace.set_tracer_provider(existing)
+
+        _reset_otel_provider()
+        configure_otel(service_name="forced-agent", force=True)
+
+        # Provider should have been replaced
+        current = trace.get_tracer_provider()
+        assert isinstance(current, TracerProvider)
+        assert current is not existing
+
+    def test_configure_otel_env_overrides(self, monkeypatch):
+        """Env vars should take precedence over function arguments."""
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider
+
+        from edictum.otel import configure_otel
+
+        _reset_otel_provider()
+
+        monkeypatch.setenv("OTEL_SERVICE_NAME", "env-service")
+        monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "team=platform,env=staging")
+
+        configure_otel(service_name="arg-service")
+
+        provider = trace.get_tracer_provider()
+        assert isinstance(provider, TracerProvider)
+        resource = provider.resource
+        # Env var should win over argument
+        assert resource.attributes.get("service.name") == "env-service"
+        assert resource.attributes.get("team") == "platform"
+        assert resource.attributes.get("env") == "staging"
+
+    def test_configure_otel_protocol_env(self, monkeypatch):
+        """OTEL_EXPORTER_OTLP_PROTOCOL should override the protocol arg."""
+        from edictum.otel import configure_otel
+
+        _reset_otel_provider()
+
+        # Set protocol to http via env — configure_otel should pick it up
+        # (we just verify it doesn't crash; actual exporter wiring is internal)
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http")
+        configure_otel(protocol="grpc")
+
     def test_span_attributes(self):
         """Spans should carry edictum-specific attributes."""
         from opentelemetry import trace

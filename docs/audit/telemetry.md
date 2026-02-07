@@ -110,6 +110,20 @@ guard = Edictum(...)
 | `protocol` | `str` | `"grpc"` | Transport protocol: `"grpc"` or `"http"` |
 | `resource_attributes` | `dict \| None` | `None` | Additional OTel resource attributes |
 | `edictum_version` | `str \| None` | `None` | Edictum version tag |
+| `force` | `bool` | `False` | Replace an existing TracerProvider. By default, `configure_otel()` is a no-op if a provider is already set. |
+
+If a `TracerProvider` is already configured (e.g. by the host application or
+another SDK), `configure_otel()` is a no-op. This prevents Edictum from
+clobbering an existing OTel setup. Pass `force=True` to override.
+
+Standard OTel environment variables take precedence over function arguments:
+
+| Env Var | Overrides |
+|---------|-----------|
+| `OTEL_SERVICE_NAME` | `service_name` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `endpoint` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `protocol` |
+| `OTEL_RESOURCE_ATTRIBUTES` | Merged with `resource_attributes` (env wins on conflict) |
 
 Configure via environment variables if you prefer:
 

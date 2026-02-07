@@ -29,6 +29,16 @@ def has_otel() -> bool:
     return _HAS_OTEL
 
 
+def _is_provider_configured() -> bool:
+    """Check whether a non-default TracerProvider is already set."""
+    if not _HAS_OTEL:
+        return False
+    current = trace.get_tracer_provider()
+    # The proxy provider wraps the real one; if it's still a proxy,
+    # no SDK provider has been configured yet.
+    return isinstance(current, TracerProvider)
+
+
 def configure_otel(
     *,
     service_name: str = "edictum-agent",
@@ -36,34 +46,54 @@ def configure_otel(
     protocol: str = "grpc",
     resource_attributes: dict[str, str] | None = None,
     edictum_version: str | None = None,
+    force: bool = False,
 ) -> None:
     """Configure OpenTelemetry for Edictum.
 
     Call this once at startup to enable OTel span emission.
     If OTel is not installed, this is a no-op.
 
-    Standard OTel env vars override these settings:
-    - OTEL_EXPORTER_OTLP_ENDPOINT overrides endpoint
-    - OTEL_SERVICE_NAME overrides service_name
-    - OTEL_RESOURCE_ATTRIBUTES merged with resource_attributes
+    If a TracerProvider is already configured (e.g. by the host
+    application), this function is a no-op unless *force=True*.
+    This prevents Edictum from clobbering an existing OTel setup.
+
+    Standard OTel env vars take precedence over arguments:
+    - OTEL_SERVICE_NAME overrides *service_name*
+    - OTEL_EXPORTER_OTLP_ENDPOINT overrides *endpoint*
+    - OTEL_EXPORTER_OTLP_PROTOCOL overrides *protocol*
+    - OTEL_RESOURCE_ATTRIBUTES merged with *resource_attributes*
     """
     if not _HAS_OTEL:
         return
 
+    if _is_provider_configured() and not force:
+        return
+
+    # Env overrides
+    actual_service = os.environ.get("OTEL_SERVICE_NAME", service_name)
+    actual_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint)
+    actual_protocol = os.environ.get("OTEL_EXPORTER_OTLP_PROTOCOL", protocol)
+
+    # Build resource attributes — env OTEL_RESOURCE_ATTRIBUTES merged last
     attrs: dict[str, str] = {
-        "service.name": service_name,
+        "service.name": actual_service,
     }
     if edictum_version:
         attrs["edictum.version"] = edictum_version
     if resource_attributes:
         attrs.update(resource_attributes)
 
+    env_attrs = os.environ.get("OTEL_RESOURCE_ATTRIBUTES", "")
+    if env_attrs:
+        for pair in env_attrs.split(","):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                attrs[k.strip()] = v.strip()
+
     resource = Resource.create(attrs)
     provider = TracerProvider(resource=resource)
 
-    actual_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint)
-
-    if protocol == "grpc":
+    if actual_protocol == "grpc":
         exporter = OTLPSpanExporter(endpoint=actual_endpoint, insecure=True)
     else:
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter as HTTPExporter
