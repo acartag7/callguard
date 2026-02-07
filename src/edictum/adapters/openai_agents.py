@@ -58,53 +58,55 @@ class OpenAIAgentsAdapter:
         self,
         on_postcondition_warn: Callable[[Any, list[Finding]], Any] | None = None,
     ) -> tuple[Any, Any]:
-        """Return (input_guardrail, output_guardrail) for OpenAI Agents SDK.
+        """Return (ToolInputGuardrail, ToolOutputGuardrail) for OpenAI Agents SDK.
+
+        The guardrails go on individual tools via ``@function_tool()``, NOT on
+        ``Agent(input_guardrails=...)`` (which expects a different type).
 
         Args:
             on_postcondition_warn: Optional callback invoked when postconditions
                 detect issues. Receives (original_result, findings) and is called
-                for side effects.
+                for side effects. The SDK's output guardrail cannot transform
+                the result — it can only allow or reject.
 
         Usage::
 
-            from agents import tool_input_guardrail, tool_output_guardrail
-
-            guard = Edictum(...)
-            adapter = OpenAIAgentsAdapter(guard)
             input_gr, output_gr = adapter.as_guardrails()
-            # Pass to Agent(input_guardrails=[input_gr], output_guardrails=[output_gr])
+
+            @function_tool(tool_input_guardrails=[input_gr], tool_output_guardrails=[output_gr])
+            def my_tool(...): ...
         """
         self._on_postcondition_warn = on_postcondition_warn
 
-        from agents import (
-            ToolGuardrailFunctionOutput,
-            tool_input_guardrail,
-            tool_output_guardrail,
+        from agents import ToolGuardrailFunctionOutput
+        from agents.tool_guardrails import (
+            ToolInputGuardrail,
+            ToolInputGuardrailData,
+            ToolOutputGuardrail,
+            ToolOutputGuardrailData,
         )
 
         adapter = self
 
-        @tool_input_guardrail
-        async def edictum_input_guardrail(context, agent, data):
+        async def input_guardrail_fn(data: ToolInputGuardrailData) -> ToolGuardrailFunctionOutput:
             tool_name = data.context.tool_name
             try:
                 tool_arguments = json.loads(data.context.tool_arguments)
             except (json.JSONDecodeError, TypeError):
                 tool_arguments = {}
 
-            # Use tool_use_id from SDK context if available, else generate one
-            call_id = getattr(data.context, "tool_use_id", None) or str(uuid.uuid4())
+            # Use tool_call_id from SDK context if available, else generate one
+            call_id = getattr(data.context, "tool_call_id", None) or str(uuid.uuid4())
             result = await adapter._pre(tool_name, tool_arguments, call_id)
             if result is not None:
                 return ToolGuardrailFunctionOutput.reject_content(result)
             return ToolGuardrailFunctionOutput.allow()
 
-        @tool_output_guardrail
-        async def edictum_output_guardrail(context, agent, data):
+        async def output_guardrail_fn(data: ToolOutputGuardrailData) -> ToolGuardrailFunctionOutput:
             tool_output = str(data.output) if data.output is not None else ""
-            # Try to correlate via tool_use_id from SDK context first.
+            # Try to correlate via tool_call_id from SDK context first.
             # Fall back to FIFO (insertion-order) for sequential execution.
-            call_id = getattr(data, "tool_use_id", None)
+            call_id = getattr(data.context, "tool_call_id", None)
             post_result = None
             if call_id and call_id in adapter._pending:
                 post_result = await adapter._post(call_id, tool_output)
@@ -120,7 +122,16 @@ class OpenAIAgentsAdapter:
 
             return ToolGuardrailFunctionOutput.allow()
 
-        return edictum_input_guardrail, edictum_output_guardrail
+        input_gr = ToolInputGuardrail(
+            guardrail_function=input_guardrail_fn,
+            name="edictum_input_guardrail",
+        )
+        output_gr = ToolOutputGuardrail(
+            guardrail_function=output_guardrail_fn,
+            name="edictum_output_guardrail",
+        )
+
+        return input_gr, output_gr
 
     async def _pre(self, tool_name: str, tool_input: dict, call_id: str) -> str | None:
         """Run pre-execution governance. Returns denial reason string or None to allow.

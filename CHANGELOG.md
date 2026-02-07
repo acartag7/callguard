@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.5.2
+
+### Fixed
+- **OpenAI Agents SDK:** `as_guardrails()` now returns correctly typed
+  `ToolInputGuardrail` / `ToolOutputGuardrail` with 1-arg functions matching
+  the SDK's calling convention. Previously unusable due to signature mismatch.
+- **CrewAI:** `register()` now uses `register_before_tool_call_hook()` /
+  `register_after_tool_call_hook()` internally instead of decorators, fixing
+  `setattr` failure on bound methods.
+- **Semantic Kernel:** Tool call denial and postcondition remediation now wrap
+  values in `FunctionResult` for SK 1.39+ pydantic compatibility.
+
+### Added
+- CrewAI adapter: automatic tool name normalization
+  ("Search Documents" → "search_documents")
+- Comprehensive framework comparison documentation in `docs/adapters.md`
+  covering integration patterns, PII redaction capabilities, token costs,
+  and known limitations for all 6 frameworks
+- Framework-specific `on_postcondition_warn` callback behavior documented
+  in `docs/findings.md`
+
+### Documentation
+- `docs/adapters.md`: Full rewrite with real-world integration patterns,
+  cross-framework comparison table, choosing-a-framework guide, and
+  per-adapter known limitations
+- `docs/findings.md`: Added framework-specific callback behavior table
+- SK adapter: Documented chat history TOOL role filtering requirement
+- CrewAI adapter: Documented global hooks, generic denial messages,
+  token cost (~3x), and tracing prompt suppression
+
 ## 0.5.1
 
 ### Added

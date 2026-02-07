@@ -72,12 +72,12 @@ When `postconditions_passed` is `True`, the `findings` list is empty and the cal
 import re
 
 def redact_pii(result, findings):
-    """Replace PII patterns while keeping clinical data intact."""
+    """Replace PII patterns while keeping useful data intact."""
     text = str(result)
     for f in findings:
         if f.type == "pii_detected":
             text = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '***-**-****', text)
-            text = re.sub(r'Patient:\s*\w+\s+\w+', 'Patient: [REDACTED]', text)
+            text = re.sub(r'Name:\s*\w+\s+\w+', 'Name: [REDACTED]', text)
     return text
 
 wrapper = adapter.as_tool_wrapper(on_postcondition_warn=redact_pii)
@@ -169,6 +169,24 @@ def log_and_alert(result, findings):
 If the callback raises an exception, it is caught and logged. The original
 tool result is returned unchanged to avoid breaking execution.
 
+## Framework-Specific Callback Behavior
+
+The `on_postcondition_warn` callback signature is consistent across all adapters:
+`(result, findings) -> result`. However, what `result` is and whether the
+transformed result reaches the LLM depends on the framework:
+
+| Framework | `result` type | Transformation respected | PII interception |
+|-----------|--------------|-------------------------|-----------------|
+| LangChain | `ToolMessage` | Yes — mutate `.content` | Full |
+| Agno | `str` | Yes — return new string | Full |
+| Semantic Kernel | `str` (wrapped in `FunctionResult`) | Yes | Full |
+| OpenAI Agents | `str` | No — allow/reject only | Logged only |
+| CrewAI | `str` | Partial (undocumented) | Partial |
+| Claude Agent SDK | `Any` | No — side-effect only | Logged only |
+
+For regulated environments requiring PII interception, use LangChain, Agno,
+or Semantic Kernel.
+
 ## Relationship to Contracts
 
 Contracts stay declarative. They **detect**, they don't **remediate**.
@@ -180,7 +198,7 @@ Contracts stay declarative. They **detect**, they don't **remediate**.
   tool: "*"
   when:
     output.text:
-      matches_any: ["\\b\\d{3}-\\d{2}-\\d{4}\\b", "\\bPAT-\\d+\\b"]
+      matches_any: ["\\b\\d{3}-\\d{2}-\\d{4}\\b", "\\bUSR-\\d+\\b"]
   then:
     effect: warn
     message: "PII pattern detected in tool output"
