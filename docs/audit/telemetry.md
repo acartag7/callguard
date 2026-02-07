@@ -83,10 +83,61 @@ These counters let you build dashboards that answer questions like:
 
 ---
 
-## Example Setup with OTLP Exporter
+## Quick Setup with `configure_otel()`
 
-A complete setup that exports traces and metrics to an OTLP-compatible backend
-(Jaeger, Grafana Tempo, Datadog Agent, etc.):
+The simplest way to enable OTel is the `configure_otel()` helper from the
+`edictum.otel` module. Call it once at startup:
+
+```python
+from edictum.otel import configure_otel
+from edictum import Edictum
+
+configure_otel(
+    service_name="my-agent",
+    endpoint="http://localhost:4317",
+)
+
+guard = Edictum(...)
+# Governance spans are now emitted to the configured OTLP endpoint
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `service_name` | `str` | `"edictum-agent"` | OTel service name resource attribute |
+| `endpoint` | `str` | `"http://localhost:4317"` | OTLP collector endpoint |
+| `protocol` | `str` | `"grpc"` | Transport protocol: `"grpc"`, `"http"`, or `"http/protobuf"`. Any non-`"grpc"` value selects the HTTP exporter. When HTTP is selected and `endpoint` is the default, it auto-adjusts to `http://localhost:4318/v1/traces`. |
+| `resource_attributes` | `dict \| None` | `None` | Additional OTel resource attributes |
+| `edictum_version` | `str \| None` | `None` | Edictum version tag |
+| `force` | `bool` | `False` | Replace an existing TracerProvider. By default, `configure_otel()` is a no-op if a provider is already set. |
+
+If a `TracerProvider` is already configured (e.g. by the host application or
+another SDK), `configure_otel()` is a no-op. This prevents Edictum from
+clobbering an existing OTel setup. Pass `force=True` to override.
+
+Standard OTel environment variables take precedence over function arguments:
+
+| Env Var | Overrides |
+|---------|-----------|
+| `OTEL_SERVICE_NAME` | `service_name` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `endpoint` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `protocol` |
+| `OTEL_RESOURCE_ATTRIBUTES` | Merged with `resource_attributes` (env wins on conflict) |
+
+Configure via environment variables if you prefer:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317"
+export OTEL_SERVICE_NAME="my-agent"
+```
+
+---
+
+## Advanced Setup with OTLP Exporter
+
+For full control over tracer and meter providers (e.g., custom exporters,
+metric readers, or resource attributes), configure them directly:
 
 ```python
 from opentelemetry import trace, metrics
@@ -117,13 +168,6 @@ from edictum import Edictum
 
 guard = Edictum(...)
 # GovernanceTelemetry picks up the global tracer and meter providers
-```
-
-Configure the OTLP endpoint via environment variables if you prefer:
-
-```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317"
-export OTEL_SERVICE_NAME="my-agent"
 ```
 
 ---
