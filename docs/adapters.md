@@ -1,185 +1,295 @@
-# Adapter Usage Guide
+# Framework Adapters
 
-Code snippets for plugging Edictum into each supported framework. Every adapter takes the same two arguments:
+Edictum integrates with 5 agent frameworks. The same YAML contracts produce
+the same governance decisions across all of them.
+
+## Quick Comparison
+
+| Feature | LangChain | OpenAI Agents | Agno | Semantic Kernel | CrewAI |
+|---------|-----------|---------------|------|-----------------|--------|
+| PII redaction | True interception | Logged only* | True interception | True interception | Partial** |
+| Deny tool calls | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `on_postcondition_warn` | ✓ (transforms result) | ✓ (logged, cannot transform) | ✓ (transforms result) | ✓ (transforms result) | ✓ (partial, undocumented) |
+| Multiple adapters/process | ✓ | ✓ | ✓ | ✓ (per kernel) | ✗ (global hooks) |
+| Tool name normalization | Not needed | Not needed | Not needed | Handled internally | Required*** |
+| Token tracking | Reliable | Reliable | Not available | Under-reports | Reliable |
+| Relative token cost | 1x | 1.1x | N/A | 0.3–0.5x | ~3x |
+| Integration complexity | Low | Medium | Low | Medium–High | High |
+
+\* OpenAI Agents output guardrails can allow or reject but cannot transform the result.
+PII is detected and logged in the audit trail, but the LLM sees the raw output.
+
+\** CrewAI's `after_tool_call` hook can return a replacement string, but this behavior
+is underdocumented and may change in future versions.
+
+\*** CrewAI uses human-readable tool names ("Query Clinical Data") while contracts
+use snake_case ("query_clinical_data"). The adapter normalizes automatically.
+
+## Choosing a Framework
+
+**For regulated environments requiring PII interception:**
+LangChain, Agno, or Semantic Kernel. These frameworks allow the
+`on_postcondition_warn` callback to transform tool output before the LLM sees it.
+
+**For simplest integration:**
+LangChain (zero workarounds) or Agno (zero workarounds, but no token tracking).
+
+**For cost-sensitive deployments:**
+Semantic Kernel batches tool calls internally, resulting in fewer LLM round-trips
+and 50–70% lower token usage. However, integration requires careful handling of
+chat history and TOOL role messages.
+
+**For CrewAI users:**
+Edictum works with CrewAI but requires the most workarounds. Hooks are global
+(one adapter per process), tool names need normalization, and denial messages
+are generic (specific reasons are in the audit trail only). Token cost is ~3x
+other frameworks due to CrewAI's verbose prompt construction.
+
+## LangChain + LangGraph
+
+**Status: Reference implementation. Cleanest integration.**
+
+### Setup
 
 ```python
-from edictum import Edictum, deny_sensitive_reads, OperationLimits, precondition, Verdict
-
-guard = Edictum(
-    contracts=[deny_sensitive_reads()],
-    limits=OperationLimits(max_tool_calls=100),
-)
-```
-
----
-
-## LangChain
-
-```bash
-pip install edictum[langchain]
-```
-
-```python
+from edictum import Edictum, Principal
 from edictum.adapters.langchain import LangChainAdapter
+from langgraph.prebuilt import ToolNode
 
-adapter = LangChainAdapter(guard, session_id="session-lc")
-middleware = adapter.as_middleware()
+guard = Edictum.from_yaml("contracts.yaml")
+principal = Principal(role="pharmacovigilance", ticket_ref="CAPA-2025-042")
+adapter = LangChainAdapter(guard, principal=principal)
 
-# Pass middleware to your agent
-agent = create_react_agent(
-    llm,
+# Without remediation
+tool_node = ToolNode(tools=tools, wrap_tool_call=adapter.as_tool_wrapper())
+
+# With PII redaction
+tool_node = ToolNode(
     tools=tools,
-    tool_call_middleware=[middleware],
+    wrap_tool_call=adapter.as_tool_wrapper(
+        on_postcondition_warn=redact_pii
+    ),
 )
 ```
 
-`as_middleware()` returns a `@wrap_tool_call` decorated function. Denied calls return a `ToolMessage` with the denial reason so the agent can self-correct.
+### How it works
 
-**Postcondition remediation** (v0.5.1+): Pass `on_postcondition_warn` to transform results when postconditions detect issues:
+The adapter wraps each tool call: pre-check → execute → post-check → optional remediation.
+This is the wrap-around pattern — the adapter controls tool execution and can transform
+the result before the LLM sees it.
 
-```python
-wrapper = adapter.as_tool_wrapper(
-    on_postcondition_warn=lambda result, findings: redact_pii(result, findings)
-)
-```
+- `on_postcondition_warn` receives `(result: ToolMessage, findings: list[Finding])`
+- Mutate `result.content` directly for surgical redaction
+- The LLM never sees unredacted content
 
-See [findings.md](findings.md) for details.
-
----
-
-## CrewAI
-
-```bash
-pip install edictum[crewai]
-```
+### Token tracking
 
 ```python
-from edictum.adapters.crewai import CrewAIAdapter
-
-adapter = CrewAIAdapter(guard, session_id="session-crew")
-adapter.register()  # registers global before/after hooks
-
-# Then use CrewAI as normal — hooks fire automatically
-crew = Crew(agents=[agent], tasks=[task])
-crew.kickoff()
+# Token usage is on AIMessage.usage_metadata — iterate ALL AI messages
+# (intermediate tool-calling messages carry tokens too)
+for msg in result["messages"]:
+    if hasattr(msg, "usage_metadata") and msg.usage_metadata:
+        total_tokens += msg.usage_metadata.get("total_tokens", 0)
 ```
 
-`register()` attaches global `@before_tool_call` / `@after_tool_call` handlers. Denied calls return `False` from the before-hook, which tells CrewAI to skip execution.
+### Known limitations
 
-**Postcondition remediation** (v0.5.1+):
-
-```python
-adapter.register(
-    on_postcondition_warn=lambda result, findings: log_findings(result, findings)
-)
-```
-
----
-
-## Agno
-
-```bash
-pip install edictum[agno]
-```
-
-```python
-from edictum.adapters.agno import AgnoAdapter
-
-adapter = AgnoAdapter(guard, session_id="session-agno")
-hook = adapter.as_tool_hook()
-
-# Pass the hook to your Agno agent
-agent = Agent(
-    model=OpenAIChat(id="gpt-4o-mini"),
-    tools=[...],
-    tool_hooks=[hook],
-)
-```
-
-`as_tool_hook()` returns a wrap-around function that receives `(function_name, function_call, arguments)`. It runs governance, calls the tool if allowed, and returns the result or a `"DENIED: ..."` string.
-
-**Postcondition remediation** (v0.5.1+):
-
-```python
-hook = adapter.as_tool_hook(
-    on_postcondition_warn=lambda result, findings: redact_pii(result, findings)
-)
-```
-
----
-
-## Semantic Kernel
-
-```bash
-pip install edictum[semantic-kernel]
-```
-
-```python
-from semantic_kernel import Kernel
-from edictum.adapters.semantic_kernel import SemanticKernelAdapter
-
-kernel = Kernel()
-# ... add plugins/functions to kernel ...
-
-adapter = SemanticKernelAdapter(guard, session_id="session-sk")
-adapter.register(kernel)
-
-# Then invoke functions as normal — the filter intercepts them
-result = await kernel.invoke(function)
-```
-
-`register(kernel)` adds an `AUTO_FUNCTION_INVOCATION` filter. Denied calls set `context.terminate = True` and return the denial reason as the function result.
-
-**Postcondition remediation** (v0.5.1+):
-
-```python
-adapter.register(
-    kernel,
-    on_postcondition_warn=lambda result, findings: redact_pii(result, findings)
-)
-```
+None. This is the gold standard integration.
 
 ---
 
 ## OpenAI Agents SDK
 
-```bash
-pip install edictum[openai-agents]
-```
+### Setup
 
 ```python
-from agents import Agent
+from edictum import Edictum, Principal
 from edictum.adapters.openai_agents import OpenAIAgentsAdapter
+from agents import function_tool, Agent, Runner
 
-adapter = OpenAIAgentsAdapter(guard, session_id="session-oai")
+guard = Edictum.from_yaml("contracts.yaml")
+principal = Principal(role="pharmacovigilance")
+adapter = OpenAIAgentsAdapter(guard, principal=principal)
+
 input_gr, output_gr = adapter.as_guardrails()
 
-agent = Agent(
-    name="file-organizer",
-    model="gpt-4o-mini",
-    tools=[...],
-    input_guardrails=[input_gr],
-    output_guardrails=[output_gr],
-)
+@function_tool(tool_input_guardrails=[input_gr], tool_output_guardrails=[output_gr])
+def query_clinical_data(dataset: str, query: str = "") -> str:
+    ...
+
+agent = Agent(name="Pharma Agent", tools=[query_clinical_data])
+result = await Runner.run(agent, task)
 ```
 
-`as_guardrails()` returns a `(input_guardrail, output_guardrail)` tuple decorated with `@tool_input_guardrail` / `@tool_output_guardrail`. Denied calls return `ToolGuardrailFunctionOutput.reject_content(reason)`.
+### How it works
 
-**Postcondition remediation** (v0.5.1+):
+The adapter produces `ToolInputGuardrail` and `ToolOutputGuardrail` objects.
+These go on individual tools via `@function_tool(tool_input_guardrails=...)`,
+NOT on `Agent(input_guardrails=...)` (which expects a different type).
+
+- Input guardrail: evaluates preconditions, returns allow or reject
+- Output guardrail: evaluates postconditions, returns allow or reject
+- Cannot transform results — SDK guardrails are binary (allow/reject)
+
+### PII redaction limitation
+
+The output guardrail detects PII via postconditions and logs it to the audit trail,
+but cannot redact the tool result before the LLM sees it. The SDK's output
+guardrail returns allow or reject — reject drops the entire result rather than
+redacting specific fields.
+
+If PII interception is required, use LangChain, Agno, or Semantic Kernel instead.
+
+### Catching denials
 
 ```python
-input_gr, output_gr = adapter.as_guardrails(
-    on_postcondition_warn=lambda result, findings: log_findings(result, findings)
-)
+try:
+    result = await Runner.run(agent, task)
+except Exception as e:
+    if "Tripwire" in type(e).__name__:
+        # Guardrail rejection — check audit trail for details
+        ...
 ```
+
+### Known limitations
+
+- Output guardrails cannot transform results (framework limitation)
+- `Runner.run_sync()` fails inside `asyncio.run()` — use `await Runner.run()` instead
+- `openai>=2.0` required — conflicts with `semantic-kernel` in same environment
+
+---
+
+## Agno
+
+### Setup
+
+```python
+from edictum import Edictum, Principal
+from edictum.adapters.agno import AgnoAdapter
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+
+guard = Edictum.from_yaml("contracts.yaml")
+principal = Principal(role="pharmacovigilance")
+adapter = AgnoAdapter(guard, principal=principal)
+
+hook = adapter.as_tool_hook(on_postcondition_warn=redact_pii)
+agent = Agent(model=OpenAIChat(id="gpt-4.1"), tools=[...], tool_hooks=[hook])
+```
+
+### How it works
+
+Similar to LangChain — the hook wraps tool execution with pre/post checks.
+`on_postcondition_warn` receives `(result: str, findings: list[Finding])`.
+
+### Known limitations
+
+- No token metrics. `response.metrics` exists but does not reliably contain
+  token counts. The API for metrics is underdocumented and key names vary between versions.
+- Agno's `agent.run()` is synchronous; the adapter bridges async Edictum calls
+  via `ThreadPoolExecutor`.
+
+---
+
+## Semantic Kernel
+
+### Setup
+
+```python
+from edictum import Edictum, Principal
+from edictum.adapters.semantic_kernel import SemanticKernelAdapter
+
+guard = Edictum.from_yaml("contracts.yaml")
+principal = Principal(role="pharmacovigilance")
+adapter = SemanticKernelAdapter(guard, principal=principal)
+
+adapter.register(kernel, on_postcondition_warn=redact_pii)
+
+# Manual chat loop required:
+while True:
+    result = await chat_service.get_chat_message_content(
+        chat_history, settings, kernel=kernel
+    )
+    # IMPORTANT: Skip TOOL role messages to avoid chat history corruption
+    if result.role != AuthorRole.TOOL:
+        chat_history.add_message(result)
+    if no_more_function_calls(result):
+        break
+```
+
+### Chat history and TOOL role messages
+
+When Edictum denies a tool call, SK still adds a `FunctionResultContent` (the denial
+message) to chat history. On the next API call, the provider sees a `tool` role message
+without a matching `tool_calls` assistant message and rejects it.
+
+Always filter TOOL role messages when adding to chat history manually:
+
+```python
+if result.role != AuthorRole.TOOL:
+    chat_history.add_message(result)
+```
+
+### Token tracking
+
+SK batches tool call execution internally. `get_chat_message_content()` may process
+multiple tool calls in one round-trip, so `llm_calls` count is lower than actual
+API calls and per-call token counts may be incomplete.
+
+### Known limitations
+
+- Chat history TOOL role filtering required (see above)
+- Token tracking under-reports due to batching
+- Pydantic version sensitivity: SK 1.39+ requires `pydantic<2.12`
+- Lowest token cost (~0.3–0.5x) due to internal batching
+
+---
+
+## CrewAI
+
+### Setup
+
+```python
+from edictum import Edictum, Principal
+from edictum.adapters.crewai import CrewAIAdapter
+
+guard = Edictum.from_yaml("contracts.yaml")
+principal = Principal(role="pharmacovigilance")
+adapter = CrewAIAdapter(guard, principal=principal)
+
+adapter.register(on_postcondition_warn=redact_pii)
+```
+
+### Tool name normalization
+
+CrewAI uses human-readable tool names ("Query Clinical Data") while contracts
+use snake_case ("query_clinical_data"). The adapter normalizes automatically.
+
+If you define tools with custom names, ensure the normalized form matches
+your contract `tool:` field:
+
+```python
+# Tool name: "Query Clinical Data" → normalized: "query_clinical_data"
+# Contract must use: tool: query_clinical_data
+```
+
+### Known limitations
+
+- Global hooks. Hooks are registered per process. Only one adapter can be active.
+  Multiple adapters = last one wins.
+- Generic denial messages. When a tool call is denied, CrewAI shows
+  "Tool execution blocked by hook" without the governance reason. The specific
+  reason is in the audit trail.
+- Most expensive. ~3x token usage compared to other frameworks. CrewAI repeats
+  the full agent role, backstory, and task description in every prompt.
+- Tracing prompt. CrewAI prompts "Would you like to view your execution traces?"
+  with a 20s timeout after every run. Set `CREWAI_TELEMETRY_OPT_OUT=1` to suppress.
 
 ---
 
 ## Claude Agent SDK
 
-```bash
-pip install edictum[yaml]
-```
+### Setup
 
 ```python
 from claude_agent_sdk import Agent
@@ -207,46 +317,15 @@ hooks = adapter.to_sdk_hooks(
 
 ---
 
-## Common Patterns
+## Governance Consistency Across Frameworks
 
-### Custom contracts
+The same YAML contracts produce the same governance decisions regardless of framework:
 
-All adapters share the same `Edictum` instance, so contracts work identically:
+| Contract | LangChain | OpenAI Agents | Agno | SK | CrewAI |
+|----------|-----------|---------------|------|----|--------|
+| case-report-requires-ticket (deny) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| restrict-patient-data (deny researcher) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| pii-in-any-output (postcondition warn) | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-```python
-@precondition("bash")
-def no_destructive_commands(envelope):
-    cmd = envelope.args.get("command", "")
-    if any(p in cmd for p in ["rm -rf", "mkfs", "dd if="]):
-        return Verdict.fail(
-            "Destructive command blocked. Use 'mv' instead of deleting."
-        )
-    return Verdict.pass_()
-
-guard = Edictum(contracts=[no_destructive_commands])
-```
-
-### Observe mode
-
-Run the full pipeline without blocking. Denials are logged as `CALL_WOULD_DENY`:
-
-```python
-guard = Edictum(
-    mode="observe",
-    contracts=[...],
-    audit_sink=FileAuditSink("audit.jsonl"),
-)
-```
-
-### Audit to file
-
-```python
-from edictum import Edictum, FileAuditSink
-
-guard = Edictum(
-    contracts=[...],
-    audit_sink=FileAuditSink("audit.jsonl"),
-)
-```
-
-See [quickstart.md](quickstart.md) for contracts, hooks, session contracts, and redaction.
+Governance is deterministic. Framework behavior around denied calls and
+postcondition remediation varies — see comparison table above.

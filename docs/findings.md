@@ -169,6 +169,23 @@ def log_and_alert(result, findings):
 If the callback raises an exception, it is caught and logged. The original
 tool result is returned unchanged to avoid breaking execution.
 
+## Framework-Specific Callback Behavior
+
+The `on_postcondition_warn` callback signature is consistent across all adapters:
+`(result, findings) -> result`. However, what `result` is and whether the
+transformed result reaches the LLM depends on the framework:
+
+| Framework | `result` type | Transformation respected | PII interception |
+|-----------|--------------|-------------------------|-----------------|
+| LangChain | `ToolMessage` | Yes — mutate `.content` | Full |
+| Agno | `str` | Yes — return new string | Full |
+| Semantic Kernel | `str` (wrapped in `FunctionResult`) | Yes | Full |
+| OpenAI Agents | `str` | No — allow/reject only | Logged only |
+| CrewAI | `str` | Partial (undocumented) | Partial |
+
+For regulated environments requiring PII interception, use LangChain, Agno,
+or Semantic Kernel.
+
 ## Relationship to Contracts
 
 Contracts stay declarative. They **detect**, they don't **remediate**.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from collections.abc import Callable
@@ -52,26 +53,83 @@ class CrewAIAdapter:
     def session_id(self) -> str:
         return self._session_id
 
+    @staticmethod
+    def _normalize_tool_name(name: str) -> str:
+        """Normalize CrewAI tool names to match contract tool names.
+
+        CrewAI: "Query Clinical Data" -> "query_clinical_data"
+        """
+        return name.lower().replace(" ", "_")
+
     def register(
         self,
         on_postcondition_warn: Callable[[Any, list[Finding]], Any] | None = None,
     ) -> None:
         """Register global before/after tool-call hooks with CrewAI.
 
+        Uses CrewAI's ``register_*_hook()`` functions instead of decorators
+        to avoid ``setattr`` failures on bound methods.
+
         Args:
             on_postcondition_warn: Optional callback invoked when postconditions
                 detect issues. Receives (original_result, findings) and is called
                 for side effects (CrewAI controls the tool result flow).
 
-        Imports CrewAI decorators lazily to avoid hard dependency.
-        The handlers are stored as _before_hook/_after_hook for direct
-        test access without requiring the CrewAI framework.
+        Imports CrewAI hook registration lazily to avoid hard dependency.
+        The underlying handlers are stored as _before_hook/_after_hook for
+        direct test access without requiring the CrewAI framework.
         """
         self._on_postcondition_warn = on_postcondition_warn
-        from crewai.hooks import after_tool_call, before_tool_call  # noqa: F811
 
-        before_tool_call(self._before_hook)
-        after_tool_call(self._after_hook)
+        from crewai.hooks.tool_hooks import (
+            register_after_tool_call_hook,
+            register_before_tool_call_hook,
+        )
+
+        adapter = self
+
+        def _run_async(coro):
+            """Bridge async coroutine to sync CrewAI hook context."""
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    return pool.submit(asyncio.run, coro).result()
+            else:
+                return asyncio.run(coro)
+
+        def before_hook(context):
+            original_name = context.tool_name
+            context.tool_name = adapter._normalize_tool_name(original_name)
+            result = _run_async(adapter._before_hook(context))
+            context.tool_name = original_name
+            return result
+
+        def after_hook(context):
+            original_name = context.tool_name
+            context.tool_name = adapter._normalize_tool_name(original_name)
+            post_result = _run_async(adapter._after_hook(context))
+            context.tool_name = original_name
+
+            # CrewAI's after hook can return a string to replace the tool result
+            if post_result is not None and not post_result.postconditions_passed:
+                on_warn = getattr(adapter, "_on_postcondition_warn", None)
+                if on_warn:
+                    try:
+                        redacted = on_warn(getattr(context, "tool_result", None), post_result.findings)
+                        if isinstance(redacted, str):
+                            return redacted
+                    except Exception:
+                        logger.exception("on_postcondition_warn callback raised in after_hook")
+            return None  # keep original result
+
+        register_before_tool_call_hook(before_hook)
+        register_after_tool_call_hook(after_hook)
 
     async def _before_hook(self, context: Any) -> bool | None:
         """Handle a before-tool-call event from CrewAI.

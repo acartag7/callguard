@@ -155,3 +155,270 @@ class TestOpenAIAgentsAdapter:
     async def test_deny_helper_format(self):
         result = OpenAIAgentsAdapter._deny("test reason")
         assert result == "DENIED: test reason"
+
+
+class TestAsGuardrailsRegression:
+    """Regression tests for as_guardrails() signature fix (v0.5.2).
+
+    The adapter previously used @tool_input_guardrail/@tool_output_guardrail
+    decorators which created 3-arg functions (context, agent, data), but the
+    SDK's ToolInputGuardrail.run() calls guardrail_function(data) with 1 arg.
+    """
+
+    async def test_as_guardrails_returns_correct_types(self):
+        """as_guardrails() should return ToolInputGuardrail and ToolOutputGuardrail."""
+        import sys
+        from types import ModuleType, SimpleNamespace
+
+        # Mock the agents SDK module
+        mock_agents = ModuleType("agents")
+        mock_tool_guardrails = ModuleType("agents.tool_guardrails")
+
+        class MockToolInputGuardrail:
+            def __init__(self, guardrail_function, name=None):
+                self.guardrail_function = guardrail_function
+                self.name = name
+
+        class MockToolOutputGuardrail:
+            def __init__(self, guardrail_function, name=None):
+                self.guardrail_function = guardrail_function
+                self.name = name
+
+        class MockToolGuardrailFunctionOutput:
+            @staticmethod
+            def reject_content(reason):
+                return SimpleNamespace(action="reject", reason=reason)
+
+            @staticmethod
+            def allow():
+                return SimpleNamespace(action="allow")
+
+        mock_agents.ToolGuardrailFunctionOutput = MockToolGuardrailFunctionOutput
+        mock_tool_guardrails.ToolInputGuardrail = MockToolInputGuardrail
+        mock_tool_guardrails.ToolInputGuardrailData = object
+        mock_tool_guardrails.ToolOutputGuardrail = MockToolOutputGuardrail
+        mock_tool_guardrails.ToolOutputGuardrailData = object
+
+        orig_agents = sys.modules.get("agents")
+        orig_tg = sys.modules.get("agents.tool_guardrails")
+        sys.modules["agents"] = mock_agents
+        sys.modules["agents.tool_guardrails"] = mock_tool_guardrails
+
+        try:
+            guard = make_guard()
+            adapter = OpenAIAgentsAdapter(guard)
+            input_gr, output_gr = adapter.as_guardrails()
+
+            assert isinstance(input_gr, MockToolInputGuardrail)
+            assert isinstance(output_gr, MockToolOutputGuardrail)
+            assert input_gr.name == "edictum_input_guardrail"
+            assert output_gr.name == "edictum_output_guardrail"
+        finally:
+            if orig_agents is not None:
+                sys.modules["agents"] = orig_agents
+            else:
+                sys.modules.pop("agents", None)
+            if orig_tg is not None:
+                sys.modules["agents.tool_guardrails"] = orig_tg
+            else:
+                sys.modules.pop("agents.tool_guardrails", None)
+
+    async def test_as_guardrails_functions_accept_one_arg(self):
+        """Guardrail functions should accept 1 arg (data), not 3 (context, agent, data)."""
+        import inspect
+        import sys
+        from types import ModuleType, SimpleNamespace
+
+        # Mock the agents SDK module
+        mock_agents = ModuleType("agents")
+        mock_tool_guardrails = ModuleType("agents.tool_guardrails")
+
+        class MockToolInputGuardrail:
+            def __init__(self, guardrail_function, name=None):
+                self.guardrail_function = guardrail_function
+                self.name = name
+
+        class MockToolOutputGuardrail:
+            def __init__(self, guardrail_function, name=None):
+                self.guardrail_function = guardrail_function
+                self.name = name
+
+        class MockToolGuardrailFunctionOutput:
+            @staticmethod
+            def reject_content(reason):
+                return SimpleNamespace(action="reject", reason=reason)
+
+            @staticmethod
+            def allow():
+                return SimpleNamespace(action="allow")
+
+        mock_agents.ToolGuardrailFunctionOutput = MockToolGuardrailFunctionOutput
+        mock_tool_guardrails.ToolInputGuardrail = MockToolInputGuardrail
+        mock_tool_guardrails.ToolInputGuardrailData = object
+        mock_tool_guardrails.ToolOutputGuardrail = MockToolOutputGuardrail
+        mock_tool_guardrails.ToolOutputGuardrailData = object
+
+        orig_agents = sys.modules.get("agents")
+        orig_tg = sys.modules.get("agents.tool_guardrails")
+        sys.modules["agents"] = mock_agents
+        sys.modules["agents.tool_guardrails"] = mock_tool_guardrails
+
+        try:
+            guard = make_guard()
+            adapter = OpenAIAgentsAdapter(guard)
+            input_gr, output_gr = adapter.as_guardrails()
+
+            # Verify function signatures accept exactly 1 parameter (data)
+            input_sig = inspect.signature(input_gr.guardrail_function)
+            output_sig = inspect.signature(output_gr.guardrail_function)
+            assert (
+                len(input_sig.parameters) == 1
+            ), f"Input guardrail should accept 1 arg, got {len(input_sig.parameters)}"
+            assert (
+                len(output_sig.parameters) == 1
+            ), f"Output guardrail should accept 1 arg, got {len(output_sig.parameters)}"
+        finally:
+            if orig_agents is not None:
+                sys.modules["agents"] = orig_agents
+            else:
+                sys.modules.pop("agents", None)
+            if orig_tg is not None:
+                sys.modules["agents.tool_guardrails"] = orig_tg
+            else:
+                sys.modules.pop("agents.tool_guardrails", None)
+
+    async def test_as_guardrails_input_denies(self):
+        """Input guardrail should deny when precondition fails."""
+        import json
+        import sys
+        from types import ModuleType, SimpleNamespace
+
+        @precondition("*")
+        def always_deny(envelope):
+            return Verdict.fail("blocked by policy")
+
+        # Mock the agents SDK module
+        mock_agents = ModuleType("agents")
+        mock_tool_guardrails = ModuleType("agents.tool_guardrails")
+
+        class MockToolInputGuardrail:
+            def __init__(self, guardrail_function, name=None):
+                self.guardrail_function = guardrail_function
+                self.name = name
+
+        class MockToolOutputGuardrail:
+            def __init__(self, guardrail_function, name=None):
+                self.guardrail_function = guardrail_function
+                self.name = name
+
+        class MockToolGuardrailFunctionOutput:
+            @staticmethod
+            def reject_content(reason):
+                return SimpleNamespace(action="reject", reason=reason)
+
+            @staticmethod
+            def allow():
+                return SimpleNamespace(action="allow")
+
+        mock_agents.ToolGuardrailFunctionOutput = MockToolGuardrailFunctionOutput
+        mock_tool_guardrails.ToolInputGuardrail = MockToolInputGuardrail
+        mock_tool_guardrails.ToolInputGuardrailData = object
+        mock_tool_guardrails.ToolOutputGuardrail = MockToolOutputGuardrail
+        mock_tool_guardrails.ToolOutputGuardrailData = object
+
+        orig_agents = sys.modules.get("agents")
+        orig_tg = sys.modules.get("agents.tool_guardrails")
+        sys.modules["agents"] = mock_agents
+        sys.modules["agents.tool_guardrails"] = mock_tool_guardrails
+
+        try:
+            guard = make_guard(contracts=[always_deny])
+            adapter = OpenAIAgentsAdapter(guard)
+            input_gr, _ = adapter.as_guardrails()
+
+            # Create mock data with 1-arg calling convention
+            mock_data = SimpleNamespace(
+                context=SimpleNamespace(
+                    tool_name="TestTool",
+                    tool_arguments=json.dumps({"key": "value"}),
+                    tool_call_id="call-1",
+                ),
+            )
+
+            result = await input_gr.guardrail_function(mock_data)
+            assert result.action == "reject"
+            assert "blocked by policy" in result.reason
+        finally:
+            if orig_agents is not None:
+                sys.modules["agents"] = orig_agents
+            else:
+                sys.modules.pop("agents", None)
+            if orig_tg is not None:
+                sys.modules["agents.tool_guardrails"] = orig_tg
+            else:
+                sys.modules.pop("agents.tool_guardrails", None)
+
+    async def test_as_guardrails_input_allows(self):
+        """Input guardrail should allow when preconditions pass."""
+        import json
+        import sys
+        from types import ModuleType, SimpleNamespace
+
+        # Mock the agents SDK module
+        mock_agents = ModuleType("agents")
+        mock_tool_guardrails = ModuleType("agents.tool_guardrails")
+
+        class MockToolInputGuardrail:
+            def __init__(self, guardrail_function, name=None):
+                self.guardrail_function = guardrail_function
+                self.name = name
+
+        class MockToolOutputGuardrail:
+            def __init__(self, guardrail_function, name=None):
+                self.guardrail_function = guardrail_function
+                self.name = name
+
+        class MockToolGuardrailFunctionOutput:
+            @staticmethod
+            def reject_content(reason):
+                return SimpleNamespace(action="reject", reason=reason)
+
+            @staticmethod
+            def allow():
+                return SimpleNamespace(action="allow")
+
+        mock_agents.ToolGuardrailFunctionOutput = MockToolGuardrailFunctionOutput
+        mock_tool_guardrails.ToolInputGuardrail = MockToolInputGuardrail
+        mock_tool_guardrails.ToolInputGuardrailData = object
+        mock_tool_guardrails.ToolOutputGuardrail = MockToolOutputGuardrail
+        mock_tool_guardrails.ToolOutputGuardrailData = object
+
+        orig_agents = sys.modules.get("agents")
+        orig_tg = sys.modules.get("agents.tool_guardrails")
+        sys.modules["agents"] = mock_agents
+        sys.modules["agents.tool_guardrails"] = mock_tool_guardrails
+
+        try:
+            guard = make_guard()
+            adapter = OpenAIAgentsAdapter(guard)
+            input_gr, _ = adapter.as_guardrails()
+
+            mock_data = SimpleNamespace(
+                context=SimpleNamespace(
+                    tool_name="TestTool",
+                    tool_arguments=json.dumps({"key": "value"}),
+                    tool_call_id="call-1",
+                ),
+            )
+
+            result = await input_gr.guardrail_function(mock_data)
+            assert result.action == "allow"
+        finally:
+            if orig_agents is not None:
+                sys.modules["agents"] = orig_agents
+            else:
+                sys.modules.pop("agents", None)
+            if orig_tg is not None:
+                sys.modules["agents.tool_guardrails"] = orig_tg
+            else:
+                sys.modules.pop("agents.tool_guardrails", None)

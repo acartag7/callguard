@@ -75,8 +75,13 @@ class SemanticKernelAdapter:
         self._on_postcondition_warn = on_postcondition_warn
 
         from semantic_kernel.filters import FilterTypes
+        from semantic_kernel.functions import FunctionResult
 
         adapter = self
+
+        def _wrap_result(context, value):
+            """Wrap a value in a FunctionResult for the current context."""
+            return FunctionResult(function=context.function.metadata, value=value)
 
         @kernel.filter(FilterTypes.AUTO_FUNCTION_INVOCATION)
         async def edictum_filter(context, next):  # noqa: N807
@@ -88,7 +93,7 @@ class SemanticKernelAdapter:
 
             if isinstance(pre_result, str):
                 # Denied — set result and don't call next
-                context.function_result = pre_result
+                context.function_result = _wrap_result(context, pre_result)
                 context.terminate = True
                 return
 
@@ -102,7 +107,8 @@ class SemanticKernelAdapter:
             # Apply remediation callback
             if not post_result.postconditions_passed and adapter._on_postcondition_warn:
                 try:
-                    context.function_result = adapter._on_postcondition_warn(post_result.result, post_result.findings)
+                    remediated = adapter._on_postcondition_warn(post_result.result, post_result.findings)
+                    context.function_result = _wrap_result(context, remediated)
                 except Exception:
                     logger.exception("on_postcondition_warn callback raised")
 

@@ -97,6 +97,21 @@ middleware = EdictumMiddleware(guard)
 | Manual if-statements | Per-tool, ad hoc | Yes — scattered logic | No |
 | **Edictum** | **Tool call contracts** | **Yes — deterministic pipeline** | **Yes — structured + redacted** |
 
+## Framework Support
+
+Edictum integrates with 5 agent frameworks. Same YAML contracts,
+same governance, different integration patterns:
+
+| Framework | Integration | PII Redaction | Complexity |
+|-----------|------------|---------------|------------|
+| LangChain + LangGraph | `as_tool_wrapper()` | Full interception | Low |
+| OpenAI Agents SDK | `as_guardrails()` | Logged only | Medium |
+| Agno | `as_tool_hook()` | Full interception | Low |
+| Semantic Kernel | `register()` | Full interception | Medium–High |
+| CrewAI | `register()` | Partial | High |
+
+See [Adapter Docs](docs/adapters.md) for setup, known limitations, and recommendations.
+
 ## Install
 
 ```bash
