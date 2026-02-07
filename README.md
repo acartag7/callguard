@@ -1,8 +1,8 @@
 # Edictum
 
-[![PyPI](https://img.shields.io/pypi/v/edictum)](https://pypi.org/project/edictum/)
-[![License](https://img.shields.io/pypi/l/edictum)](LICENSE)
-[![Python](https://img.shields.io/pypi/pyversions/edictum)](https://pypi.org/project/edictum/)
+[![PyPI](https://img.shields.io/pypi/v/edictum?cacheSeconds=3600)](https://pypi.org/project/edictum/)
+[![License](https://img.shields.io/pypi/l/edictum?cacheSeconds=86400)](LICENSE)
+[![Python](https://img.shields.io/pypi/pyversions/edictum?cacheSeconds=86400)](https://pypi.org/project/edictum/)
 
 **Runtime contracts for AI agents.**
 
