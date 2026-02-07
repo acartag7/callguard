@@ -1,8 +1,8 @@
-# CallGuard v0.3.0 — Code Review & Security Review
+# Edictum v0.3.0 — Code Review & Security Review
 
 > **Reviewed:** 2026-02-06
 > **Branch:** v0.3.0
-> **Scope:** All files in `src/callguard/`, `tests/`, `schemas/`, `pyproject.toml`
+> **Scope:** All files in `src/edictum/`, `tests/`, `schemas/`, `pyproject.toml`
 > **Reviewers:** Code Quality (R1) + Security (R2)
 
 ---
@@ -10,13 +10,13 @@
 ## 1. Critical — Must Fix Before Release
 
 ### C-1: Schema file path breaks on pip install (R1)
-**File:** `src/callguard/yaml_engine/loader.py:20`
+**File:** `src/edictum/yaml_engine/loader.py:20`
 
 ```python
-_SCHEMA_PATH = Path(__file__).parent.parent.parent.parent / "schemas" / "callguard-v1.schema.json"
+_SCHEMA_PATH = Path(__file__).parent.parent.parent.parent / "schemas" / "edictum-v1.schema.json"
 ```
 
-This traverses to the project root, which only works from a source checkout. When installed via `pip install callguard[yaml]`, `__file__` resolves to `site-packages/callguard/yaml_engine/loader.py`, and walking up 4 parents lands outside site-packages entirely. **Every `from_yaml()` call will fail for pip-installed users.**
+This traverses to the project root, which only works from a source checkout. When installed via `pip install edictum[yaml]`, `__file__` resolves to `site-packages/edictum/yaml_engine/loader.py`, and walking up 4 parents lands outside site-packages entirely. **Every `from_yaml()` call will fail for pip-installed users.**
 
 **Why it matters:** This is the primary v0.3.0 feature. If it doesn't work when installed, the release is broken.
 
@@ -28,16 +28,16 @@ def _get_schema() -> dict:
     global _schema_cache
     if _schema_cache is None:
         import json
-        schema_text = _resources.files("callguard.yaml_engine").joinpath("callguard-v1.schema.json").read_text()
+        schema_text = _resources.files("edictum.yaml_engine").joinpath("edictum-v1.schema.json").read_text()
         _schema_cache = json.loads(schema_text)
     return _schema_cache
 ```
-Copy the schema into `src/callguard/yaml_engine/` and update `pyproject.toml` to include it in the wheel (or use `package-data`).
+Copy the schema into `src/edictum/yaml_engine/` and update `pyproject.toml` to include it in the wheel (or use `package-data`).
 
 ---
 
 ### C-2: Regexes not compiled at load time — ReDoS vector (R2)
-**File:** `src/callguard/yaml_engine/evaluator.py:241,247`
+**File:** `src/edictum/yaml_engine/evaluator.py:241,247`
 
 ```python
 def _op_matches(field_value: Any, op_value: str) -> bool:
@@ -86,7 +86,7 @@ For ReDoS mitigation, consider adding a timeout via `re.search` with a signal al
 ---
 
 ### C-3: All 6 adapters missing `policy_version` in audit events (R1)
-**Files:** All files in `src/callguard/adapters/`
+**Files:** All files in `src/edictum/adapters/`
 
 Every adapter's `_emit_audit_pre()` and post-execution audit `emit()` constructs `AuditEvent` without `policy_version`. Example from `claude_agent_sdk.py:156-176`:
 
@@ -101,7 +101,7 @@ await self._guard.audit_sink.emit(
 )
 ```
 
-The `CallGuard.run()` method correctly stamps `policy_version=self.policy_version` (lines 332, 372, 405), but all 6 adapters omit it. **When using any adapter with YAML contracts, audit events will have `policy_version: None` even though the guard has it set.**
+The `Edictum.run()` method correctly stamps `policy_version=self.policy_version` (lines 332, 372, 405), but all 6 adapters omit it. **When using any adapter with YAML contracts, audit events will have `policy_version: None` even though the guard has it set.**
 
 **Why it matters:** Policy version is the tamper-evidence hash for compliance. Without it in audit events, you lose the ability to prove which policy version governed each decision.
 
@@ -110,7 +110,7 @@ The `CallGuard.run()` method correctly stamps `policy_version=self.policy_versio
 ---
 
 ### C-4: `replay` command reads audit log file twice (R1)
-**File:** `src/callguard/cli/main.py:325`
+**File:** `src/edictum/cli/main.py:325`
 
 ```python
 lines = log_path.read_text().strip().split("\n") if log_path.read_text().strip() else []
@@ -129,7 +129,7 @@ lines = content.split("\n") if content else []
 ## 2. High — Should Fix Before Release
 
 ### H-1: FileAuditSink uses blocking I/O in async context (R1)
-**File:** `src/callguard/audit.py:212`
+**File:** `src/edictum/audit.py:212`
 
 ```python
 async def emit(self, event: AuditEvent) -> None:
@@ -189,7 +189,7 @@ None of the three sinks specify a timeout on `session.post()`. A slow or unrespo
 ---
 
 ### H-4: Compiler session contract hardcodes default limit value (R1)
-**File:** `src/callguard/yaml_engine/compiler.py:179`
+**File:** `src/edictum/yaml_engine/compiler.py:179`
 
 ```python
 if limits.max_attempts < 500 and attempt_count >= limits.max_attempts:
@@ -256,7 +256,7 @@ If the task fails after 3 retries, the only trace is a log message. The event is
 ## 3. Medium — Fix in Next Release
 
 ### M-1: No YAML file size limit (R2)
-**File:** `src/callguard/yaml_engine/loader.py:142`
+**File:** `src/edictum/yaml_engine/loader.py:142`
 
 ```python
 raw_bytes = path.read_bytes()
@@ -269,20 +269,20 @@ A 100MB YAML file would be read entirely into memory, then parsed by PyYAML (whi
 MAX_BUNDLE_SIZE = 1_048_576  # 1MB
 stat = path.stat()
 if stat.st_size > MAX_BUNDLE_SIZE:
-    raise CallGuardConfigError(f"Bundle file too large: {stat.st_size} bytes (max {MAX_BUNDLE_SIZE})")
+    raise EdictumConfigError(f"Bundle file too large: {stat.st_size} bytes (max {MAX_BUNDLE_SIZE})")
 ```
 
 ---
 
 ### M-2: `_validate_unique_ids` is O(n^2) (R1)
-**File:** `src/callguard/yaml_engine/loader.py:66-71`
+**File:** `src/edictum/yaml_engine/loader.py:66-71`
 
 ```python
 ids: list[str] = []
 for contract in data.get("contracts", []):
     contract_id = contract.get("id")
     if contract_id in ids:  # O(n) scan per check
-        raise CallGuardConfigError(...)
+        raise EdictumConfigError(...)
     ids.append(contract_id)
 ```
 
@@ -294,14 +294,14 @@ ids: set[str] = set()
 for contract in data.get("contracts", []):
     contract_id = contract.get("id")
     if contract_id in ids:
-        raise CallGuardConfigError(...)
+        raise EdictumConfigError(...)
     ids.add(contract_id)
 ```
 
 ---
 
 ### M-3: `_expand_message` leaks untrusted data into messages (R2)
-**File:** `src/callguard/yaml_engine/compiler.py:225-246`
+**File:** `src/edictum/yaml_engine/compiler.py:225-246`
 
 The message template `"Blocked: {args.path}"` expands `args.path` from the ToolEnvelope, which comes from untrusted AI agent input. The 200-char cap helps, but the expanded value is inserted directly into the denial message, which then flows to:
 - Audit events (stored in logs/SIEM)
@@ -329,7 +329,7 @@ No test verifies that adapters propagate `policy_version` (see C-3). Additional 
 ---
 
 ### M-5: `AuditEvent.schema_version` still `"0.0.1"` (R1)
-**File:** `src/callguard/audit.py:32`
+**File:** `src/edictum/audit.py:32`
 
 ```python
 schema_version: str = "0.0.1"
@@ -340,7 +340,7 @@ The audit event schema has changed in v0.3.0 (added `policy_version`, `policy_er
 ---
 
 ### M-6: No connection pool reuse in Agno adapter's thread bridge (R1)
-**File:** `src/callguard/adapters/agno.py:71-80`
+**File:** `src/edictum/adapters/agno.py:71-80`
 
 ```python
 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
@@ -356,7 +356,7 @@ A new `ThreadPoolExecutor` is created per tool call. This is correct but wastefu
 ## 4. Low — Nice to Have
 
 ### L-1: `CompiledBundle` field types use bare `list` (R1)
-**File:** `src/callguard/yaml_engine/compiler.py:23-25`
+**File:** `src/edictum/yaml_engine/compiler.py:23-25`
 
 ```python
 preconditions: list = field(default_factory=list)
@@ -376,14 +376,14 @@ Identical 9-line method copy-pasted in all three sinks. Could be extracted to a 
 ---
 
 ### L-3: `_PolicyError` could be a proper exception subclass (R1)
-**File:** `src/callguard/yaml_engine/evaluator.py:38-48`
+**File:** `src/edictum/yaml_engine/evaluator.py:38-48`
 
 `_PolicyError` is a sentinel class with `__bool__` returning `True`. While this works for the evaluator's control flow, making it a non-exception class that's truthy is surprising. A more explicit pattern would be returning a tagged union or using `isinstance` checks (which the compiler already does).
 
 ---
 
 ### L-4: CLI `diff` exit code semantics (R1)
-**File:** `src/callguard/cli/main.py:302`
+**File:** `src/edictum/cli/main.py:302`
 
 ```python
 sys.exit(1 if has_changes else 0)
@@ -430,7 +430,7 @@ Denial messages are instructive: "Attempt limit reached (500). Agent may be stuc
 No `eval()`, `exec()`, `pickle.load()`, `subprocess` with unsanitized input, or other dangerous patterns found anywhere in the codebase. Dependencies use `>=` lower bounds (not unpinned `*`), and the core library has zero required dependencies.
 
 ### P-10: Zero-dependency core
-`callguard` has no required dependencies — only optional extras for YAML, OTel, sinks, and adapters. This is excellent for adoption and minimizes supply chain risk.
+`edictum` has no required dependencies — only optional extras for YAML, OTel, sinks, and adapters. This is excellent for adoption and minimizes supply chain risk.
 
 ---
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from callguard.limits import OperationLimits
+from edictum.limits import OperationLimits
 
 
 class TestOperationLimits:

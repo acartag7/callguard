@@ -1,8 +1,8 @@
-"""CallGuard Contract Cookbook — Recipes for every governance pattern.
+"""Edictum Contract Cookbook — Recipes for every governance pattern.
 
 Each recipe is a standalone, copy-paste-ready contract with:
 - Docstring explaining WHEN and WHY you'd use it
-- Working code against the real CallGuard API
+- Working code against the real Edictum API
 - The denial message written to help the agent self-correct
 
 Run this file to verify all contracts compile:
@@ -22,7 +22,7 @@ import json
 import re
 from collections.abc import Callable
 
-from callguard import Verdict, postcondition, precondition, session_contract
+from edictum import Verdict, postcondition, precondition, session_contract
 
 # ════════════════════════════════════════════════════════════════════
 #  PART 1: PRECONDITIONS — Block Before Execution
@@ -55,15 +55,17 @@ def no_destructive_commands(envelope):
     for pattern in destructive:
         if pattern in cmd:
             return Verdict.fail(
-                f"Destructive command blocked: '{pattern}'. "
-                "Use 'mv' to relocate files instead of deleting them."
+                f"Destructive command blocked: '{pattern}'. " "Use 'mv' to relocate files instead of deleting them."
             )
     return Verdict.pass_()
 
 
-@precondition("read_file", when=lambda e: any(
-    s in (e.args.get("path") or "") for s in [".env", "credentials", "id_rsa", ".pem", ".key", ".secret"]
-))
+@precondition(
+    "read_file",
+    when=lambda e: any(
+        s in (e.args.get("path") or "") for s in [".env", "credentials", "id_rsa", ".pem", ".key", ".secret"]
+    ),
+)
 def block_sensitive_reads(envelope):
     """Prevent agents from reading secrets files.
 
@@ -101,17 +103,35 @@ def allowlist_read_only_commands(envelope):
     """
     cmd = (envelope.args.get("command") or "").strip()
     allowed_prefixes = [
-        "ls", "cat", "head", "tail", "wc", "find", "grep", "rg",
-        "git status", "git log", "git diff", "git show", "git branch",
-        "echo", "pwd", "whoami", "date", "which", "file", "stat",
-        "du", "df", "tree",
+        "ls",
+        "cat",
+        "head",
+        "tail",
+        "wc",
+        "find",
+        "grep",
+        "rg",
+        "git status",
+        "git log",
+        "git diff",
+        "git show",
+        "git branch",
+        "echo",
+        "pwd",
+        "whoami",
+        "date",
+        "which",
+        "file",
+        "stat",
+        "du",
+        "df",
+        "tree",
     ]
 
     # Also block shell operators regardless
     if any(op in cmd for op in [">", ">>", "|", ";", "&&", "||", "$(", "`"]):
         return Verdict.fail(
-            "Shell operators (pipes, redirects, chaining) are not allowed. "
-            "Use individual read-only commands only."
+            "Shell operators (pipes, redirects, chaining) are not allowed. " "Use individual read-only commands only."
         )
 
     for prefix in allowed_prefixes:
@@ -154,7 +174,7 @@ def make_require_target_dir(base: str):
 # ─── 1.4  Environment-Aware Contracts ────────────────────────────
 #
 #  Same contract, different behavior per environment.
-#  The envelope carries `environment` from CallGuard config.
+#  The envelope carries `environment` from Edictum config.
 
 
 @precondition("deploy")
@@ -273,8 +293,7 @@ def validate_sql_query(envelope):
     # Require LIMIT on SELECT
     if "SELECT" in query and "LIMIT" not in query:
         return Verdict.fail(
-            "SELECT queries must include a LIMIT clause. "
-            "Add 'LIMIT 1000' to prevent unbounded result sets."
+            "SELECT queries must include a LIMIT clause. " "Add 'LIMIT 1000' to prevent unbounded result sets."
         )
 
     return Verdict.pass_()
@@ -333,18 +352,21 @@ def make_max_cost_per_call(tool: str, cost_fn: Callable, max_cost: float, curren
 # Example: EC2 instance cost estimator
 def estimate_ec2_cost(args: dict) -> float:
     hourly_rates = {
-        "t3.micro": 0.01, "t3.small": 0.02, "t3.medium": 0.04,
-        "m5.large": 0.10, "m5.xlarge": 0.19, "m5.2xlarge": 0.38,
-        "p3.2xlarge": 3.06, "p3.8xlarge": 12.24,
+        "t3.micro": 0.01,
+        "t3.small": 0.02,
+        "t3.medium": 0.04,
+        "m5.large": 0.10,
+        "m5.xlarge": 0.19,
+        "m5.2xlarge": 0.38,
+        "p3.2xlarge": 3.06,
+        "p3.8xlarge": 12.24,
     }
     instance_type = args.get("instance_type", "")
     hours = args.get("hours", 1)
     return hourly_rates.get(instance_type, 5.0) * hours
 
 
-ec2_cost_limit = make_max_cost_per_call(
-    "create_ec2_instance", estimate_ec2_cost, max_cost=10.0
-)
+ec2_cost_limit = make_max_cost_per_call("create_ec2_instance", estimate_ec2_cost, max_cost=10.0)
 
 
 # ─── 1.8  Input Sanitization ─────────────────────────────────────
@@ -495,10 +517,7 @@ def validate_api_response(envelope, tool_response):
     if isinstance(tool_response, dict):
         status = tool_response.get("status") or tool_response.get("statusCode")
         if isinstance(status, int) and status >= 400:
-            return Verdict.fail(
-                f"API returned status {status}. "
-                "Inspect the error message and adjust your request."
-            )
+            return Verdict.fail(f"API returned status {status}. " "Inspect the error message and adjust your request.")
 
     return Verdict.pass_()
 
@@ -757,7 +776,7 @@ class DependencyGate:
 
     Usage:
         gate = DependencyGate("authenticate", "query_database")
-        guard = CallGuard(contracts=[gate.contract])
+        guard = Edictum(contracts=[gate.contract])
     """
 
     def __init__(self, prerequisite: str, dependent: str):
@@ -808,7 +827,7 @@ class WorkflowGate:
         def require_auth(envelope):
             return gate.check("Call 'authenticate' first.")
 
-        guard = CallGuard(contracts=[mark_authenticated, require_auth])
+        guard = Edictum(contracts=[mark_authenticated, require_auth])
     """
 
     def __init__(self):
@@ -870,13 +889,11 @@ def research_agent_contracts():
         block_sensitive_reads,
         validate_sql_query,
         no_prompt_injection_in_args,
-
         # Postconditions
         detect_pii_in_output,
         detect_secrets_in_output,
         validate_query_results,
         monitor_output_size,
-
         # Session
         make_operation_limit(50),
         research_budget,
@@ -896,10 +913,8 @@ def file_organizer_contracts(target_dir: str = "/tmp/organized/"):
         no_destructive_commands,
         block_sensitive_reads,
         make_require_target_dir(target_dir),
-
         # Postconditions
         detect_secrets_in_output,
-
         # Session
         make_operation_limit(30),
         make_failure_escalation(5),
@@ -918,18 +933,19 @@ def devops_agent_contracts():
         production_requires_dry_run,
         no_friday_deploys,
         ec2_cost_limit,
-
         # Postconditions
         detect_secrets_in_output,
         validate_api_response,
-
         # Session
         make_operation_limit(100),
-        make_budget_limit(50.0, {
-            "create_ec2_instance": 1.00,
-            "create_rds_instance": 5.00,
-            "deploy": 0.50,
-        }),
+        make_budget_limit(
+            50.0,
+            {
+                "create_ec2_instance": 1.00,
+                "create_rds_instance": 5.00,
+                "deploy": 0.50,
+            },
+        ),
         make_failure_escalation(3),
     ]
 
@@ -982,8 +998,8 @@ if __name__ == "__main__":
     compositions = []
 
     for name, obj in list(globals().items()):
-        if callable(obj) and hasattr(obj, "_callguard_type"):
-            t = obj._callguard_type
+        if callable(obj) and hasattr(obj, "_edictum_type"):
+            t = obj._edictum_type
             if t == "precondition":
                 preconditions.append(name)
             elif t == "postcondition":
@@ -998,7 +1014,7 @@ if __name__ == "__main__":
         if callable(obj) and name.endswith("_contracts") and not name.startswith("_"):
             compositions.append(name)
 
-    print("CallGuard Contract Cookbook")
+    print("Edictum Contract Cookbook")
     print("=" * 60)
     print(f"\n  Preconditions:      {len(preconditions)}")
     for p in preconditions:

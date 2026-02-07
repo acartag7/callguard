@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Claude Agent SDK + CallGuard demo — file cleanup agent.
+"""Claude Agent SDK + Edictum demo — file cleanup agent.
 
 Uses Claude Haiku 4.5 via OpenRouter, routed through the Claude Agent SDK
 adapter's _pre_tool_use / _post_tool_use hooks to show governance in action.
 
 Usage:
     bash setup.sh                         # create /tmp/messy_files/
-    python demo_claude_agent_sdk.py       # WITHOUT CallGuard
-    python demo_claude_agent_sdk.py --guard   # WITH CallGuard
+    python demo_claude_agent_sdk.py       # WITHOUT Edictum
+    python demo_claude_agent_sdk.py --guard   # WITH Edictum
 
 Requires: OPENROUTER_API_KEY
 """
@@ -23,7 +23,7 @@ import uuid
 
 from openai import OpenAI
 from tools import (
-    CALLGUARD_TOOLS_CONFIG,
+    EDICTUM_TOOLS_CONFIG,
     OPENAI_TOOLS,
     SYSTEM_PROMPT,
     TOOL_DISPATCH,
@@ -45,7 +45,7 @@ def run_without_guard(client: OpenAI) -> None:
     ]
 
     print("=" * 60)
-    print("  Claude Agent SDK Demo: WITHOUT CallGuard")
+    print("  Claude Agent SDK Demo: WITHOUT Edictum")
     print("=" * 60)
     print()
 
@@ -81,11 +81,11 @@ def run_without_guard(client: OpenAI) -> None:
 
     print(f"\n{'─' * 60}")
     print(f"Total calls: {call_count}  |  Audit: NONE  |  Secrets protection: NONE")
-    write_metrics_summary(metrics, "/tmp/callguard_claude_sdk_metrics.json", {"mode": "without_guard"})
+    write_metrics_summary(metrics, "/tmp/edictum_claude_sdk_metrics.json", {"mode": "without_guard"})
 
 
 async def run_with_guard(client: OpenAI) -> None:
-    """Run the same agent, governed by CallGuard via the Claude Agent SDK adapter.
+    """Run the same agent, governed by Edictum via the Claude Agent SDK adapter.
 
     The Claude SDK uses pre/post tool hooks that return dicts:
     - {} means allow
@@ -93,20 +93,20 @@ async def run_with_guard(client: OpenAI) -> None:
     """
     from contracts import ALL_CONTRACTS
 
-    from callguard import CallGuard, FileAuditSink
-    from callguard.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
+    from edictum import Edictum, FileAuditSink
+    from edictum.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
 
-    audit_path = "/tmp/callguard_claude_sdk_audit.jsonl"
-    metrics_path = "/tmp/callguard_claude_sdk_metrics.json"
+    audit_path = "/tmp/edictum_claude_sdk_audit.jsonl"
+    metrics_path = "/tmp/edictum_claude_sdk_metrics.json"
     if os.path.exists(audit_path):
         os.remove(audit_path)
 
     metrics = DemoMetrics()
-    guard = CallGuard(
+    guard = Edictum(
         environment="demo",
         mode="enforce",
         contracts=ALL_CONTRACTS,
-        tools=CALLGUARD_TOOLS_CONFIG,
+        tools=EDICTUM_TOOLS_CONFIG,
         audit_sink=FileAuditSink(audit_path),
     )
     adapter = ClaudeAgentSDKAdapter(guard, session_id="demo-claude-sdk")
@@ -117,7 +117,7 @@ async def run_with_guard(client: OpenAI) -> None:
     ]
 
     print("=" * 60)
-    print("  Claude Agent SDK Demo: WITH CallGuard")
+    print("  Claude Agent SDK Demo: WITH Edictum")
     print("=" * 60)
     print()
 
@@ -156,7 +156,7 @@ async def run_with_guard(client: OpenAI) -> None:
                 denied_count += 1
                 reason = hook_output.get("permissionDecisionReason", "denied")
                 result = f"DENIED: {reason}"
-                print(f"  ** CALLGUARD: {result}\n")
+                print(f"  ** EDICTUM: {result}\n")
             else:
                 tool_start = now_s()
                 result = TOOL_DISPATCH[fn_name](args)
@@ -192,8 +192,8 @@ def _print_audit(path: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Claude Agent SDK + CallGuard demo")
-    parser.add_argument("--guard", action="store_true", help="Enable CallGuard governance")
+    parser = argparse.ArgumentParser(description="Claude Agent SDK + Edictum demo")
+    parser.add_argument("--guard", action="store_true", help="Enable Edictum governance")
     args = parser.parse_args()
 
     if not os.environ.get("OPENROUTER_API_KEY"):

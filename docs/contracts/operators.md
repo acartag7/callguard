@@ -1,6 +1,6 @@
 # Operator Reference
 
-CallGuard's expression grammar supports 15 operators across five categories. Each leaf in a `when` expression uses exactly one operator applied to one selector.
+Edictum's expression grammar supports 15 operators across five categories. Each leaf in a `when` expression uses exactly one operator applied to one selector.
 
 For the full schema context, see the [YAML Contract Reference](yaml-reference.md).
 
@@ -414,7 +414,7 @@ When an operator receives a value of the wrong type (for example, `contains` app
 - For preconditions and session contracts, this results in a deny.
 - For postconditions, this results in a warn.
 
-This behavior is intentional. If CallGuard cannot evaluate a rule, it assumes the worst case and fires the rule rather than silently ignoring it.
+This behavior is intentional. If Edictum cannot evaluate a rule, it assumes the worst case and fires the rule rather than silently ignoring it.
 
 ## Missing Field Behavior
 

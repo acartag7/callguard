@@ -6,28 +6,28 @@ from pathlib import Path
 
 import pytest
 
-from callguard import (
-    CallGuard,
-    CallGuardConfigError,
-    CallGuardDenied,
+from edictum import (
+    Edictum,
+    EdictumConfigError,
+    EdictumDenied,
     Principal,
     Verdict,
     create_envelope,
     precondition,
 )
-from callguard.adapters.agno import AgnoAdapter
-from callguard.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
-from callguard.adapters.crewai import CrewAIAdapter
-from callguard.adapters.langchain import LangChainAdapter
-from callguard.adapters.openai_agents import OpenAIAgentsAdapter
-from callguard.adapters.semantic_kernel import SemanticKernelAdapter
-from callguard.audit import AuditAction, AuditEvent
-from callguard.contracts import postcondition
-from callguard.session import Session
-from callguard.storage import MemoryBackend
-from callguard.types import HookRegistration
-from callguard.yaml_engine.compiler import _expand_message, compile_contracts
-from callguard.yaml_engine.loader import load_bundle
+from edictum.adapters.agno import AgnoAdapter
+from edictum.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
+from edictum.adapters.crewai import CrewAIAdapter
+from edictum.adapters.langchain import LangChainAdapter
+from edictum.adapters.openai_agents import OpenAIAgentsAdapter
+from edictum.adapters.semantic_kernel import SemanticKernelAdapter
+from edictum.audit import AuditAction, AuditEvent
+from edictum.contracts import postcondition
+from edictum.session import Session
+from edictum.storage import MemoryBackend
+from edictum.types import HookRegistration
+from edictum.yaml_engine.compiler import _expand_message, compile_contracts
+from edictum.yaml_engine.loader import load_bundle
 
 FIXTURES = Path(__file__).parent / "test_yaml_engine" / "fixtures"
 
@@ -47,7 +47,7 @@ def _guard(**kwargs):
         "backend": MemoryBackend(),
     }
     defaults.update(kwargs)
-    return CallGuard(**defaults)
+    return Edictum(**defaults)
 
 
 # ── Fix 1: Reject output.text in type: pre contracts at load time ──
@@ -55,7 +55,7 @@ def _guard(**kwargs):
 
 class TestFix1OutputTextInPre:
     def test_output_text_in_pre_raises(self):
-        with pytest.raises(CallGuardConfigError, match="output.text selector"):
+        with pytest.raises(EdictumConfigError, match="output.text selector"):
             load_bundle(FIXTURES / "invalid_output_text_in_pre.yaml")
 
     def test_output_text_in_post_allowed(self):
@@ -68,7 +68,7 @@ class TestFix1OutputTextInPre:
         bundle = tmp_path / "nested.yaml"
         bundle.write_text(
             """
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 metadata:
   name: nested-test
@@ -89,7 +89,7 @@ contracts:
       message: "blocked"
 """
         )
-        with pytest.raises(CallGuardConfigError, match="output.text selector"):
+        with pytest.raises(EdictumConfigError, match="output.text selector"):
             load_bundle(bundle)
 
 
@@ -101,23 +101,23 @@ class TestFix2YamlDecisionSource:
         data, _ = load_bundle(FIXTURES / "valid_bundle.yaml")
         compiled = compile_contracts(data)
         fn = compiled.preconditions[0]
-        assert fn._callguard_source == "yaml_precondition"
+        assert fn._edictum_source == "yaml_precondition"
 
     def test_postcondition_source_yaml_prefixed(self):
         data, _ = load_bundle(FIXTURES / "valid_bundle.yaml")
         compiled = compile_contracts(data)
         fn = compiled.postconditions[0]
-        assert fn._callguard_source == "yaml_postcondition"
+        assert fn._edictum_source == "yaml_postcondition"
 
     def test_session_source_yaml_prefixed(self):
         data, _ = load_bundle(FIXTURES / "valid_bundle.yaml")
         compiled = compile_contracts(data)
         fn = compiled.session_contracts[0]
-        assert fn._callguard_source == "yaml_session"
+        assert fn._edictum_source == "yaml_session"
 
     async def test_deny_audit_has_yaml_decision_source(self):
         sink = NullSink()
-        guard = CallGuard.from_yaml(
+        guard = Edictum.from_yaml(
             FIXTURES / "valid_bundle.yaml",
             audit_sink=sink,
             backend=MemoryBackend(),
@@ -126,7 +126,7 @@ class TestFix2YamlDecisionSource:
         async def noop(**kw):
             return "ok"
 
-        with pytest.raises(CallGuardDenied) as exc:
+        with pytest.raises(EdictumDenied) as exc:
             await guard.run("read_file", {"path": ".env"}, noop)
         assert exc.value.decision_source == "yaml_precondition"
 
@@ -142,7 +142,7 @@ class TestFix3PolicyError:
     async def test_policy_error_in_pre_audit(self):
         """Type mismatch in YAML rule sets policy_error on AuditEvent."""
         bundle_data = {
-            "apiVersion": "callguard/v1",
+            "apiVersion": "edictum/v1",
             "kind": "ContractBundle",
             "metadata": {"name": "test"},
             "defaults": {"mode": "enforce"},
@@ -166,7 +166,7 @@ class TestFix3PolicyError:
         async def noop(**kw):
             return "ok"
 
-        with pytest.raises(CallGuardDenied):
+        with pytest.raises(EdictumDenied):
             await guard.run("TestTool", {"count": "not_a_number"}, noop)
 
         denied = [e for e in sink.events if e.action == AuditAction.CALL_DENIED]
@@ -185,7 +185,7 @@ class TestFix4PerRuleObserve:
         def observed_deny(envelope):
             return Verdict.fail("observed violation")
 
-        observed_deny._callguard_mode = "observe"
+        observed_deny._edictum_mode = "observe"
 
         sink = NullSink()
         guard = _guard(contracts=[observed_deny], audit_sink=sink)
@@ -207,13 +207,13 @@ class TestFix4PerRuleObserve:
         def observed_deny(envelope):
             return Verdict.fail("observed violation")
 
-        observed_deny._callguard_mode = "observe"
+        observed_deny._edictum_mode = "observe"
 
         @precondition("*")
         def enforced_deny(envelope):
             return Verdict.fail("enforced violation")
 
-        enforced_deny._callguard_mode = "enforce"
+        enforced_deny._edictum_mode = "enforce"
 
         sink = NullSink()
         guard = _guard(contracts=[observed_deny, enforced_deny], audit_sink=sink)
@@ -221,7 +221,7 @@ class TestFix4PerRuleObserve:
         async def noop(**kw):
             return "ok"
 
-        with pytest.raises(CallGuardDenied, match="enforced violation"):
+        with pytest.raises(EdictumDenied, match="enforced violation"):
             await guard.run("TestTool", {}, noop)
 
     async def test_observe_mode_in_claude_adapter(self):
@@ -229,7 +229,7 @@ class TestFix4PerRuleObserve:
         def observed_deny(envelope):
             return Verdict.fail("observed")
 
-        observed_deny._callguard_mode = "observe"
+        observed_deny._edictum_mode = "observe"
 
         sink = NullSink()
         guard = _guard(contracts=[observed_deny], audit_sink=sink)
@@ -258,7 +258,7 @@ class TestFix5ExceptionSafety:
         async def noop(**kw):
             return "ok"
 
-        with pytest.raises(CallGuardDenied, match="Precondition error"):
+        with pytest.raises(EdictumDenied, match="Precondition error"):
             await guard.run("TestTool", {}, noop)
 
         denied = [e for e in sink.events if e.action == AuditAction.CALL_DENIED]
@@ -294,7 +294,7 @@ class TestFix5ExceptionSafety:
         async def noop(**kw):
             return "ok"
 
-        with pytest.raises(CallGuardDenied, match="Hook error"):
+        with pytest.raises(EdictumDenied, match="Hook error"):
             await guard.run("TestTool", {}, noop)
 
 
@@ -303,7 +303,7 @@ class TestFix5ExceptionSafety:
 
 class TestFix6RegexCap:
     def test_large_input_no_hang(self):
-        from callguard.yaml_engine.evaluator import _op_matches
+        from edictum.yaml_engine.evaluator import _op_matches
 
         large = "a" * 50_000
         # Should not hang — evaluates truncated portion
@@ -311,14 +311,14 @@ class TestFix6RegexCap:
         assert isinstance(result, bool)
 
     def test_truncated_still_evaluates(self):
-        from callguard.yaml_engine.evaluator import _op_matches
+        from edictum.yaml_engine.evaluator import _op_matches
 
         # Pattern matches in first 10K chars
         value = "secret" + "x" * 50_000
         assert _op_matches(value, "secret") is True
 
     def test_matches_any_with_large_input(self):
-        from callguard.yaml_engine.evaluator import _op_matches_any
+        from edictum.yaml_engine.evaluator import _op_matches_any
 
         large = "a" * 50_000
         result = _op_matches_any(large, ["^a+$"])
@@ -370,7 +370,7 @@ class TestFix8PrincipalDeepCopy:
 
 class TestFix9DatadogSiteValidation:
     def test_valid_sites(self):
-        from callguard.sinks.datadog import DatadogSink
+        from edictum.sinks.datadog import DatadogSink
 
         # Should not raise
         DatadogSink(api_key="test", site="datadoghq.com")
@@ -378,13 +378,13 @@ class TestFix9DatadogSiteValidation:
         DatadogSink(api_key="test", site="us3.datadoghq.com")
 
     def test_invalid_site_rejected(self):
-        from callguard.sinks.datadog import DatadogSink
+        from edictum.sinks.datadog import DatadogSink
 
         with pytest.raises(ValueError, match="Invalid Datadog site"):
             DatadogSink(api_key="test", site="evil.com/redirect")
 
     def test_empty_site_rejected(self):
-        from callguard.sinks.datadog import DatadogSink
+        from edictum.sinks.datadog import DatadogSink
 
         with pytest.raises(ValueError, match="Invalid Datadog site"):
             DatadogSink(api_key="test", site="")
@@ -395,7 +395,7 @@ class TestFix9DatadogSiteValidation:
 
 class TestFix10OnFailureCallback:
     async def test_on_failure_called_after_retries(self):
-        from callguard.sinks.webhook import WebhookAuditSink
+        from edictum.sinks.webhook import WebhookAuditSink
 
         failures = []
 
@@ -420,7 +420,7 @@ class TestFix10OnFailureCallback:
         assert isinstance(failures[0][1], Exception)
 
     async def test_on_failure_exception_logged_not_raised(self):
-        from callguard.sinks.webhook import WebhookAuditSink
+        from edictum.sinks.webhook import WebhookAuditSink
 
         async def bad_callback(body, exc):
             raise RuntimeError("callback broke")
@@ -448,7 +448,7 @@ class TestFix11SessionLimitsDefault:
     async def test_max_attempts_at_default_still_enforced(self):
         """max_attempts: 500 (same as default) should still be enforced."""
         bundle_data = {
-            "apiVersion": "callguard/v1",
+            "apiVersion": "edictum/v1",
             "kind": "ContractBundle",
             "metadata": {"name": "test"},
             "defaults": {"mode": "enforce"},
@@ -482,12 +482,12 @@ class TestFix11SessionLimitsDefault:
 
 class TestFix12Exports:
     def test_bundle_hash_importable(self):
-        from callguard.yaml_engine import BundleHash
+        from edictum.yaml_engine import BundleHash
 
         assert BundleHash is not None
 
     def test_compiled_bundle_importable(self):
-        from callguard.yaml_engine import CompiledBundle
+        from edictum.yaml_engine import CompiledBundle
 
         assert CompiledBundle is not None
 
@@ -588,7 +588,7 @@ class TestFix15ToolUseId:
 
 class TestFix16FileAuditAsync:
     async def test_file_sink_uses_executor(self, tmp_path):
-        from callguard.audit import FileAuditSink
+        from edictum.audit import FileAuditSink
 
         path = tmp_path / "audit.jsonl"
         sink = FileAuditSink(path)
@@ -608,7 +608,7 @@ class TestFix16FileAuditAsync:
 
 class TestFix17SharedSession:
     async def test_session_reused(self):
-        from callguard.sinks._base import HTTPSinkBase
+        from edictum.sinks._base import HTTPSinkBase
 
         base = HTTPSinkBase()
         s1 = await base._get_session()
@@ -624,7 +624,7 @@ class TestFix22FileSizeLimit:
     def test_large_file_rejected(self, tmp_path):
         big = tmp_path / "big.yaml"
         big.write_bytes(b"x" * (1_048_576 + 1))
-        with pytest.raises(CallGuardConfigError, match="Bundle file too large"):
+        with pytest.raises(EdictumConfigError, match="Bundle file too large"):
             load_bundle(big)
 
     def test_normal_file_accepted(self):

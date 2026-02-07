@@ -1,6 +1,6 @@
 # YAML Contract Reference
 
-This is the complete reference for `callguard/v1` contract bundles. A contract bundle is a single YAML file that declares all the governance rules for a CallGuard instance.
+This is the complete reference for `edictum/v1` contract bundles. A contract bundle is a single YAML file that declares all the governance rules for a Edictum instance.
 
 ---
 
@@ -9,7 +9,7 @@ This is the complete reference for `callguard/v1` contract bundles. A contract b
 Every contract bundle starts with four required top-level fields:
 
 ```yaml
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -25,19 +25,19 @@ contracts:
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `apiVersion` | string | yes | Must be `callguard/v1`. |
+| `apiVersion` | string | yes | Must be `edictum/v1`. |
 | `kind` | string | yes | Must be `ContractBundle`. |
 | `metadata.name` | string | yes | Bundle identifier. Slug format: `[a-z0-9][a-z0-9._-]*`. |
 | `metadata.description` | string | no | Human-readable description. |
 | `defaults.mode` | string | yes | `enforce` or `observe`. Applied to every contract that does not set its own `mode`. |
 | `contracts` | array | yes | Minimum one contract. Each item is a precondition, postcondition, or session contract. |
 
-The bundle is loaded with `CallGuard.from_yaml()`:
+The bundle is loaded with `Edictum.from_yaml()`:
 
 ```python
-from callguard import CallGuard
+from edictum import Edictum
 
-guard = CallGuard.from_yaml("contracts/my-policy.yaml")
+guard = Edictum.from_yaml("contracts/my-policy.yaml")
 ```
 
 A SHA256 hash of the raw YAML bytes is computed at load time and stamped as `policy_version` on every `AuditEvent` and OpenTelemetry span. This gives you an immutable link between any audit record and the exact policy file that produced it.
@@ -287,11 +287,11 @@ If a placeholder references a missing field, it is kept as-is in the output (no 
 
 ## Error Handling {#error-handling}
 
-Error behavior is hardcoded and not configurable. CallGuard follows a fail-closed design: when in doubt, the contract fires.
+Error behavior is hardcoded and not configurable. Edictum follows a fail-closed design: when in doubt, the contract fires.
 
 | Scenario | Behavior |
 |---|---|
-| YAML parse error | `from_yaml()` raises `CallGuardConfigError`. |
+| YAML parse error | `from_yaml()` raises `EdictumConfigError`. |
 | Invalid regex in `matches` / `matches_any` | Validation error at load time. |
 | Duplicate contract `id` within a bundle | Validation error at load time. |
 | YAML rule evaluation throws | Rule yields `deny` (pre/session) or `warn` (post) with `policy_error: true`. Other rules continue evaluating. |
@@ -318,8 +318,8 @@ YAML contracts integrate with the audit system automatically. Every contract eva
 
 OpenTelemetry span attributes (when OTel SDK is installed):
 
-- `callguard.policy_version` -- the bundle hash.
-- `callguard.policy_error` -- set to `true` if any rule had an evaluation error.
+- `edictum.policy_version` -- the bundle hash.
+- `edictum.policy_error` -- set to `true` if any rule had an evaluation error.
 
 This means you can trace any audit record or OTel span back to the exact YAML file that produced it, and to the specific contract `id` that fired.
 
@@ -330,7 +330,7 @@ This means you can trace any audit record or OTel span back to the exact YAML fi
 The following bundle demonstrates all three contract types working together for a DevOps agent:
 
 ```yaml
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:

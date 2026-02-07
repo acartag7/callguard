@@ -19,16 +19,16 @@ invoking it.
 ### Installation
 
 ```bash
-pip install callguard[agno]
+pip install edictum[agno]
 ```
 
 ### Setup
 
 ```python
-from callguard import CallGuard, Principal
-from callguard.adapters.agno import AgnoAdapter
+from edictum import Edictum, Principal
+from edictum.adapters.agno import AgnoAdapter
 
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 
 adapter = AgnoAdapter(
     guard=guard,
@@ -42,12 +42,12 @@ hook = adapter.as_tool_hook()
 ### Full Example
 
 ```python
-from callguard import CallGuard, Principal
-from callguard.adapters.agno import AgnoAdapter
+from edictum import Edictum, Principal
+from edictum.adapters.agno import AgnoAdapter
 from agno import Agent
 
 # Configure governance
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 adapter = AgnoAdapter(
     guard=guard,
     principal=Principal(user_id="research-agent"),
@@ -88,7 +88,7 @@ The adapter controls the full lifecycle:
   keyword arguments, not a single positional dict.
 
 - **Async-to-sync bridging**: Agno's `tool_hooks` are synchronous, but
-  CallGuard's pipeline is async. The adapter detects whether an event loop is
+  Edictum's pipeline is async. The adapter detects whether an event loop is
   already running:
     - If no loop is running, it uses `asyncio.run()`.
     - If a loop is already running (common in async frameworks), it spins up a
@@ -104,23 +104,23 @@ The adapter controls the full lifecycle:
 
 The `SemanticKernelAdapter` registers an `AUTO_FUNCTION_INVOCATION` filter on a
 Semantic Kernel `Kernel` instance. The filter intercepts every auto-invoked
-function call and runs CallGuard governance around it.
+function call and runs Edictum governance around it.
 
 ### Installation
 
 ```bash
-pip install callguard[semantic-kernel]
+pip install edictum[semantic-kernel]
 ```
 
 ### Setup
 
 ```python
-from callguard import CallGuard, Principal
-from callguard.adapters.semantic_kernel import SemanticKernelAdapter
+from edictum import Edictum, Principal
+from edictum.adapters.semantic_kernel import SemanticKernelAdapter
 from semantic_kernel import Kernel
 
 kernel = Kernel()
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 
 adapter = SemanticKernelAdapter(
     guard=guard,
@@ -135,8 +135,8 @@ adapter.register(kernel)
 ### Full Example
 
 ```python
-from callguard import CallGuard, Principal
-from callguard.adapters.semantic_kernel import SemanticKernelAdapter
+from edictum import Edictum, Principal
+from edictum.adapters.semantic_kernel import SemanticKernelAdapter
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 
@@ -147,7 +147,7 @@ kernel.add_plugin(file_plugin, "FileOps")
 kernel.add_plugin(search_plugin, "Search")
 
 # Configure governance
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 adapter = SemanticKernelAdapter(
     guard=guard,
     principal=Principal(user_id="analyst", role="data-team"),
@@ -202,16 +202,16 @@ tool guardrail system.
 ### Installation
 
 ```bash
-pip install callguard[openai-agents]
+pip install edictum[openai-agents]
 ```
 
 ### Setup
 
 ```python
-from callguard import CallGuard, Principal
-from callguard.adapters.openai_agents import OpenAIAgentsAdapter
+from edictum import Edictum, Principal
+from edictum.adapters.openai_agents import OpenAIAgentsAdapter
 
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 
 adapter = OpenAIAgentsAdapter(
     guard=guard,
@@ -225,12 +225,12 @@ input_guardrail, output_guardrail = adapter.as_guardrails()
 ### Full Example
 
 ```python
-from callguard import CallGuard, Principal
-from callguard.adapters.openai_agents import OpenAIAgentsAdapter
+from edictum import Edictum, Principal
+from edictum.adapters.openai_agents import OpenAIAgentsAdapter
 from agents import Agent
 
 # Configure governance
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 adapter = OpenAIAgentsAdapter(
     guard=guard,
     principal=Principal(user_id="support-agent", role="tier-1"),
@@ -297,7 +297,7 @@ These patterns apply to all four adapters on this page.
 All adapters support observe mode for safe production rollout:
 
 ```python
-guard = CallGuard.from_yaml("contracts.yaml", mode="observe")
+guard = Edictum.from_yaml("contracts.yaml", mode="observe")
 adapter = SomeAdapter(guard=guard)
 ```
 
@@ -309,12 +309,12 @@ normally.
 Route audit output to a file with automatic redaction:
 
 ```python
-from callguard.audit import FileAuditSink, RedactionPolicy
+from edictum.audit import FileAuditSink, RedactionPolicy
 
 redaction = RedactionPolicy()
 sink = FileAuditSink("audit.jsonl", redaction=redaction)
 
-guard = CallGuard.from_yaml(
+guard = Edictum.from_yaml(
     "contracts.yaml",
     audit_sink=sink,
     redaction=redaction,
@@ -326,7 +326,7 @@ guard = CallGuard.from_yaml(
 Attach identity information to every audit event in a session:
 
 ```python
-from callguard import Principal
+from edictum import Principal
 
 principal = Principal(
     user_id="alice",

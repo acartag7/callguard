@@ -1,13 +1,13 @@
 # OpenTelemetry Integration
 
-CallGuard instruments the governance pipeline with OpenTelemetry spans and metrics.
+Edictum instruments the governance pipeline with OpenTelemetry spans and metrics.
 When `opentelemetry` is not installed, all instrumentation degrades to silent no-ops
 with zero overhead.
 
 ## Installation
 
 ```bash
-pip install callguard[otel]
+pip install edictum[otel]
 ```
 
 This installs the `opentelemetry-api` and `opentelemetry-sdk` packages. You will
@@ -18,8 +18,8 @@ also need an exporter for your backend (e.g. `opentelemetry-exporter-otlp` for O
 
 ## What Gets Instrumented
 
-`GovernanceTelemetry` creates an OTel tracer named `"callguard"` and a meter named
-`"callguard"`. These produce spans and counters that track every tool call through
+`GovernanceTelemetry` creates an OTel tracer named `"edictum"` and a meter named
+`"edictum"`. These produce spans and counters that track every tool call through
 the governance pipeline.
 
 ### Spans
@@ -31,7 +31,7 @@ tool.execute {tool_name}
 ```
 
 For example, a call to the `Bash` tool produces a span named
-`tool.execute Bash`. The span begins when CallGuard starts evaluating the
+`tool.execute Bash`. The span begins when Edictum starts evaluating the
 envelope and ends after post-execution checks complete (or after denial, if
 the call is blocked).
 
@@ -55,7 +55,7 @@ Attributes are set at different lifecycle stages.
 |-----------|------|-------------|
 | `governance.action` | `string` | Decision outcome: `allowed`, `denied`, `would_deny` |
 | `governance.reason` | `string` | Denial reason (only set when denied) |
-| `callguard.policy_version` | `string` | SHA-256 hash of the active YAML contract file |
+| `edictum.policy_version` | `string` | SHA-256 hash of the active YAML contract file |
 
 **Set after tool execution (post-execution):**
 
@@ -68,12 +68,12 @@ Attributes are set at different lifecycle stages.
 
 ## Metrics
 
-Two counters are registered under the `callguard` meter:
+Two counters are registered under the `edictum` meter:
 
 | Metric Name | Type | Labels | Description |
 |-------------|------|--------|-------------|
-| `callguard.calls.denied` | Counter | `tool.name` | Incremented each time a tool call is denied |
-| `callguard.calls.allowed` | Counter | `tool.name` | Incremented each time a tool call is allowed |
+| `edictum.calls.denied` | Counter | `tool.name` | Incremented each time a tool call is denied |
+| `edictum.calls.allowed` | Counter | `tool.name` | Incremented each time a tool call is allowed |
 
 These counters let you build dashboards that answer questions like:
 
@@ -112,10 +112,10 @@ metric_reader = PeriodicExportingMetricReader(
 meter_provider = MeterProvider(metric_readers=[metric_reader])
 metrics.set_meter_provider(meter_provider)
 
-# Now import and use CallGuard — telemetry activates automatically
-from callguard import CallGuard
+# Now import and use Edictum — telemetry activates automatically
+from edictum import Edictum
 
-guard = CallGuard(...)
+guard = Edictum(...)
 # GovernanceTelemetry picks up the global tracer and meter providers
 ```
 
@@ -141,10 +141,10 @@ no-op:
 
 This means you can leave telemetry wired into your pipeline configuration
 unconditionally. When deploying to an environment without OTel, there is no need
-to change code or configuration -- CallGuard simply skips all instrumentation.
+to change code or configuration -- Edictum simply skips all instrumentation.
 
 ```python
-from callguard.telemetry import GovernanceTelemetry
+from edictum.telemetry import GovernanceTelemetry
 
 telemetry = GovernanceTelemetry()
 
@@ -159,15 +159,15 @@ telemetry.record_allowed(envelope)                # silently ignored
 
 ## Correlating with Application Traces
 
-CallGuard spans participate in the standard OTel context propagation. If your
+Edictum spans participate in the standard OTel context propagation. If your
 application already creates spans (e.g. for an HTTP request or an agent loop
-iteration), CallGuard spans appear as children of whatever span is active when
+iteration), Edictum spans appear as children of whatever span is active when
 the governance pipeline runs. This gives you a single trace that shows:
 
 ```
 HTTP POST /agent/run                        [your app]
   └─ agent.loop.iteration                   [your app]
-      └─ tool.execute Bash                  [callguard]
+      └─ tool.execute Bash                  [edictum]
           governance.action = "allowed"
           governance.tool_success = true
 ```

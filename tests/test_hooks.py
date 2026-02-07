@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from callguard.hooks import HookDecision, HookResult
+from edictum.hooks import HookDecision, HookResult
 
 
 class TestHookDecision:

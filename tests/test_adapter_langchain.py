@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from typing import Any
 from unittest.mock import MagicMock
 
-from callguard import CallGuard, Verdict, precondition
-from callguard.adapters.langchain import LangChainAdapter
-from callguard.audit import AuditAction
-from callguard.storage import MemoryBackend
+from edictum import Edictum, Verdict, precondition
+from edictum.adapters.langchain import LangChainAdapter
+from edictum.audit import AuditAction
+from edictum.storage import MemoryBackend
 from tests.conftest import NullAuditSink
 
 
@@ -20,7 +20,7 @@ def make_guard(**kwargs):
         "backend": MemoryBackend(),
     }
     defaults.update(kwargs)
-    return CallGuard(**defaults)
+    return Edictum(**defaults)
 
 
 def _make_request(tool_name: str = "TestTool", tool_args: dict | None = None, tool_call_id: str = "tc-1") -> Any:

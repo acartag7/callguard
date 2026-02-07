@@ -1,0 +1,278 @@
+"""GovernancePipeline — single source of governance logic."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+from edictum.contracts import Verdict
+from edictum.envelope import SideEffect, ToolEnvelope
+from edictum.hooks import HookDecision, HookResult
+from edictum.session import Session
+
+if TYPE_CHECKING:
+    from edictum import Edictum
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PreDecision:
+    """Result of pre-execution governance evaluation."""
+
+    action: str  # "allow" | "deny"
+    reason: str | None = None
+    decision_source: str | None = None
+    decision_name: str | None = None
+    hooks_evaluated: list[dict] = field(default_factory=list)
+    contracts_evaluated: list[dict] = field(default_factory=list)
+    observed: bool = False
+    policy_error: bool = False
+
+
+@dataclass
+class PostDecision:
+    """Result of post-execution governance evaluation."""
+
+    tool_success: bool
+    postconditions_passed: bool
+    warnings: list[str] = field(default_factory=list)
+    contracts_evaluated: list[dict] = field(default_factory=list)
+    policy_error: bool = False
+
+
+class GovernancePipeline:
+    """Orchestrates all governance checks.
+
+    This is the single source of truth for governance logic.
+    Adapters call pre_execute() and post_execute(), then translate
+    the structured results into framework-specific formats.
+    """
+
+    def __init__(self, guard: Edictum):
+        self._guard = guard
+
+    async def pre_execute(
+        self,
+        envelope: ToolEnvelope,
+        session: Session,
+    ) -> PreDecision:
+        """Run all pre-execution governance checks."""
+        hooks_evaluated: list[dict] = []
+        contracts_evaluated: list[dict] = []
+        has_observed_deny = False
+
+        # 1. Attempt limit
+        attempt_count = await session.attempt_count()
+        if attempt_count >= self._guard.limits.max_attempts:
+            return PreDecision(
+                action="deny",
+                reason=f"Attempt limit reached ({self._guard.limits.max_attempts}). "
+                "Agent may be stuck in a retry loop. Stop and reassess.",
+                decision_source="attempt_limit",
+                decision_name="max_attempts",
+                hooks_evaluated=hooks_evaluated,
+                contracts_evaluated=contracts_evaluated,
+            )
+
+        # 2. Before hooks (Fix 5: catch exceptions)
+        for hook_reg in self._guard.get_hooks("before", envelope):
+            if hook_reg.when and not hook_reg.when(envelope):
+                continue
+            try:
+                decision = hook_reg.callback(envelope)
+                if asyncio.iscoroutine(decision):
+                    decision = await decision
+            except Exception as exc:
+                logger.exception("Hook %s raised", getattr(hook_reg.callback, "__name__", "anonymous"))
+                decision = HookDecision.deny(f"Hook error: {exc}")
+
+            hook_record = {
+                "name": getattr(hook_reg.callback, "__name__", "anonymous"),
+                "result": decision.result.value,
+                "reason": decision.reason,
+            }
+            hooks_evaluated.append(hook_record)
+
+            if decision.result == HookResult.DENY:
+                return PreDecision(
+                    action="deny",
+                    reason=decision.reason,
+                    decision_source="hook",
+                    decision_name=hook_record["name"],
+                    hooks_evaluated=hooks_evaluated,
+                    contracts_evaluated=contracts_evaluated,
+                    policy_error=True if "Hook error:" in (decision.reason or "") else False,
+                )
+
+        # 3. Preconditions (Fix 5: catch exceptions)
+        for contract in self._guard.get_preconditions(envelope):
+            try:
+                verdict = contract(envelope)
+                if asyncio.iscoroutine(verdict):
+                    verdict = await verdict
+            except Exception as exc:
+                logger.exception("Precondition %s raised", getattr(contract, "__name__", "anonymous"))
+                verdict = Verdict.fail(f"Precondition error: {exc}", policy_error=True)
+
+            contract_mode = getattr(contract, "_edictum_mode", None)
+            contract_record = {
+                "name": getattr(contract, "__name__", "anonymous"),
+                "type": "precondition",
+                "passed": verdict.passed,
+                "message": verdict.message,
+            }
+            if verdict.metadata:
+                contract_record["metadata"] = verdict.metadata
+            contracts_evaluated.append(contract_record)
+
+            if not verdict.passed:
+                # Per-rule observe mode: record but don't deny (Fix 4)
+                if contract_mode == "observe":
+                    contract_record["observed"] = True
+                    has_observed_deny = True
+                    continue
+
+                source = getattr(contract, "_edictum_source", "precondition")
+                pe = any(c.get("metadata", {}).get("policy_error") for c in contracts_evaluated)
+                return PreDecision(
+                    action="deny",
+                    reason=verdict.message,
+                    decision_source=source,
+                    decision_name=contract_record["name"],
+                    hooks_evaluated=hooks_evaluated,
+                    contracts_evaluated=contracts_evaluated,
+                    policy_error=pe,
+                )
+
+        # 4. Session contracts (Fix 5: catch exceptions)
+        for contract in self._guard.get_session_contracts():
+            try:
+                verdict = contract(session)
+                if asyncio.iscoroutine(verdict):
+                    verdict = await verdict
+            except Exception as exc:
+                logger.exception("Session contract %s raised", getattr(contract, "__name__", "anonymous"))
+                verdict = Verdict.fail(f"Session contract error: {exc}", policy_error=True)
+
+            contract_record = {
+                "name": getattr(contract, "__name__", "anonymous"),
+                "type": "session_contract",
+                "passed": verdict.passed,
+                "message": verdict.message,
+            }
+            if verdict.metadata:
+                contract_record["metadata"] = verdict.metadata
+            contracts_evaluated.append(contract_record)
+
+            if not verdict.passed:
+                source = getattr(contract, "_edictum_source", "session_contract")
+                pe = any(c.get("metadata", {}).get("policy_error") for c in contracts_evaluated)
+                return PreDecision(
+                    action="deny",
+                    reason=verdict.message,
+                    decision_source=source,
+                    decision_name=contract_record["name"],
+                    hooks_evaluated=hooks_evaluated,
+                    contracts_evaluated=contracts_evaluated,
+                    policy_error=pe,
+                )
+
+        # 5. Execution limits
+        exec_count = await session.execution_count()
+        if exec_count >= self._guard.limits.max_tool_calls:
+            return PreDecision(
+                action="deny",
+                reason=f"Execution limit reached ({self._guard.limits.max_tool_calls} calls). "
+                "Summarize progress and stop.",
+                decision_source="operation_limit",
+                decision_name="max_tool_calls",
+                hooks_evaluated=hooks_evaluated,
+                contracts_evaluated=contracts_evaluated,
+            )
+
+        # Per-tool limits
+        if envelope.tool_name in self._guard.limits.max_calls_per_tool:
+            tool_count = await session.tool_execution_count(envelope.tool_name)
+            tool_limit = self._guard.limits.max_calls_per_tool[envelope.tool_name]
+            if tool_count >= tool_limit:
+                return PreDecision(
+                    action="deny",
+                    reason=f"Per-tool limit: {envelope.tool_name} called {tool_count} times (limit: {tool_limit}).",
+                    decision_source="operation_limit",
+                    decision_name=f"max_calls_per_tool:{envelope.tool_name}",
+                    hooks_evaluated=hooks_evaluated,
+                    contracts_evaluated=contracts_evaluated,
+                )
+
+        # 6. All checks passed
+        pe = any(c.get("metadata", {}).get("policy_error") for c in contracts_evaluated)
+        return PreDecision(
+            action="allow",
+            hooks_evaluated=hooks_evaluated,
+            contracts_evaluated=contracts_evaluated,
+            observed=has_observed_deny,
+            policy_error=pe,
+        )
+
+    async def post_execute(
+        self,
+        envelope: ToolEnvelope,
+        tool_response: Any,
+        tool_success: bool,
+    ) -> PostDecision:
+        """Run all post-execution governance checks."""
+        warnings: list[str] = []
+        contracts_evaluated: list[dict] = []
+
+        # 1. Postconditions (Fix 5: catch exceptions)
+        for contract in self._guard.get_postconditions(envelope):
+            try:
+                verdict = contract(envelope, tool_response)
+                if asyncio.iscoroutine(verdict):
+                    verdict = await verdict
+            except Exception as exc:
+                logger.exception("Postcondition %s raised", getattr(contract, "__name__", "anonymous"))
+                verdict = Verdict.fail(f"Postcondition error: {exc}", policy_error=True)
+
+            contract_record = {
+                "name": getattr(contract, "__name__", "anonymous"),
+                "type": "postcondition",
+                "passed": verdict.passed,
+                "message": verdict.message,
+            }
+            if verdict.metadata:
+                contract_record["metadata"] = verdict.metadata
+            contracts_evaluated.append(contract_record)
+
+            if not verdict.passed:
+                if envelope.side_effect in (SideEffect.PURE, SideEffect.READ):
+                    warnings.append(f"\u26a0\ufe0f {verdict.message} Consider retrying.")
+                else:
+                    warnings.append(
+                        f"\u26a0\ufe0f {verdict.message} Tool already executed \u2014 assess before proceeding."
+                    )
+
+        # 2. After hooks (Fix 5: catch exceptions)
+        for hook_reg in self._guard.get_hooks("after", envelope):
+            if hook_reg.when and not hook_reg.when(envelope):
+                continue
+            try:
+                result = hook_reg.callback(envelope, tool_response)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                logger.exception("After hook %s raised", getattr(hook_reg.callback, "__name__", "anonymous"))
+
+        postconditions_passed = all(c["passed"] for c in contracts_evaluated) if contracts_evaluated else True
+        pe = any(c.get("metadata", {}).get("policy_error") for c in contracts_evaluated)
+
+        return PostDecision(
+            tool_success=tool_success,
+            postconditions_passed=postconditions_passed,
+            warnings=warnings,
+            contracts_evaluated=contracts_evaluated,
+            policy_error=pe,
+        )

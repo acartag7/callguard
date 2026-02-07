@@ -1,15 +1,15 @@
-"""CallGuard CLI — Stream D implementation spec and tests.
+"""Edictum CLI — Stream D implementation spec and tests.
 
 This file serves two purposes:
 1. Documents the exact CLI behavior (read the docstrings)
 2. Provides the test suite the agent should make pass
 
 Dependencies: click>=8.0, rich>=13.0 (under [cli] optional extra)
-Entry point: callguard (via pyproject.toml [project.scripts])
+Entry point: edictum (via pyproject.toml [project.scripts])
 
 Architecture:
-- callguard/cli/__init__.py — empty
-- callguard/cli/main.py — click group + 4 commands
+- edictum/cli/__init__.py — empty
+- edictum/cli/main.py — click group + 4 commands
 - Each command is a thin wrapper around library functions
 - Exit codes: 0 = success, 1 = validation/policy error, 2 = usage error
 
@@ -30,7 +30,7 @@ from click.testing import CliRunner
 # ---------------------------------------------------------------------------
 
 VALID_BUNDLE = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -85,7 +85,7 @@ contracts:
 """
 
 INVALID_WRONG_EFFECT = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -106,7 +106,7 @@ contracts:
 """
 
 INVALID_DUPLICATE_ID = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -136,7 +136,7 @@ contracts:
 """
 
 INVALID_BAD_REGEX = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -158,7 +158,7 @@ contracts:
 """
 
 INVALID_YAML_SYNTAX = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 metadata:
   name: broken
@@ -176,7 +176,7 @@ contracts:
 """
 
 INVALID_MISSING_WHEN = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -195,7 +195,7 @@ contracts:
 """
 
 BUNDLE_V2 = """\
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 
 metadata:
@@ -260,13 +260,13 @@ def write_file(content: str, suffix: str = ".yaml") -> str:
 # Import the CLI — agent implements this
 # ---------------------------------------------------------------------------
 
-# The agent should create callguard/cli/main.py with a click group:
+# The agent should create edictum/cli/main.py with a click group:
 #
 #   import click
 #
 #   @click.group()
 #   def cli():
-#       """CallGuard — Runtime contracts for AI agents."""
+#       """Edictum — Runtime contracts for AI agents."""
 #       pass
 #
 #   @cli.command()
@@ -296,21 +296,21 @@ def write_file(content: str, suffix: str = ".yaml") -> str:
 #
 # Entry point in pyproject.toml:
 #   [project.scripts]
-#   callguard = "callguard.cli.main:cli"
+#   edictum = "edictum.cli.main:cli"
 
 
 # This import will fail until the agent creates the module.
 # The agent should make it work.
-from callguard.cli.main import cli  # noqa: E402
+from edictum.cli.main import cli  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# 1. callguard validate
+# 1. edictum validate
 # ---------------------------------------------------------------------------
 
 
 class TestValidateCommand:
     """
-    SPEC: callguard validate <file.yaml> [file2.yaml ...]
+    SPEC: edictum validate <file.yaml> [file2.yaml ...]
 
     Validates one or more contract bundle files.
     For each file:
@@ -399,13 +399,13 @@ class TestValidateCommand:
 
 
 # ---------------------------------------------------------------------------
-# 2. callguard check
+# 2. edictum check
 # ---------------------------------------------------------------------------
 
 
 class TestCheckCommand:
     """
-    SPEC: callguard check <file.yaml> --tool <name> --args '<json>'
+    SPEC: edictum check <file.yaml> --tool <name> --args '<json>'
                           [--environment <env>]
                           [--principal-role <role>]
                           [--principal-user <user>]
@@ -426,11 +426,17 @@ class TestCheckCommand:
     def test_denied_sensitive_read(self):
         path = write_file(VALID_BUNDLE)
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "check", path,
-            "--tool", "read_file",
-            "--args", '{"path": "/app/.env"}',
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                path,
+                "--tool",
+                "read_file",
+                "--args",
+                '{"path": "/app/.env"}',
+            ],
+        )
         assert result.exit_code == 1
         assert "denied" in result.output.lower() or "DENIED" in result.output
         assert "block-env-reads" in result.output
@@ -438,33 +444,51 @@ class TestCheckCommand:
     def test_allowed_safe_read(self):
         path = write_file(VALID_BUNDLE)
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "check", path,
-            "--tool", "read_file",
-            "--args", '{"path": "README.md"}',
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                path,
+                "--tool",
+                "read_file",
+                "--args",
+                '{"path": "README.md"}',
+            ],
+        )
         assert result.exit_code == 0
         assert "allowed" in result.output.lower() or "ALLOWED" in result.output
 
     def test_denied_destructive_bash(self):
         path = write_file(VALID_BUNDLE)
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "check", path,
-            "--tool", "bash",
-            "--args", '{"command": "rm -rf /tmp/data"}',
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                path,
+                "--tool",
+                "bash",
+                "--args",
+                '{"command": "rm -rf /tmp/data"}',
+            ],
+        )
         assert result.exit_code == 1
         assert "bash-safety" in result.output
 
     def test_allowed_safe_bash(self):
         path = write_file(VALID_BUNDLE)
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "check", path,
-            "--tool", "bash",
-            "--args", '{"command": "ls -la"}',
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                path,
+                "--tool",
+                "bash",
+                "--args",
+                '{"command": "ls -la"}',
+            ],
+        )
         assert result.exit_code == 0
 
     def test_check_with_principal_role(self):
@@ -472,47 +496,75 @@ class TestCheckCommand:
         runner = CliRunner()
         # BUNDLE_V2 has require-ticket which checks principal.ticket_ref exists: false
         # Providing a ticket should pass
-        result = runner.invoke(cli, [
-            "check", path,
-            "--tool", "deploy_service",
-            "--args", '{"service": "api"}',
-            "--principal-role", "sre",
-            "--principal-ticket", "JIRA-123",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                path,
+                "--tool",
+                "deploy_service",
+                "--args",
+                '{"service": "api"}',
+                "--principal-role",
+                "sre",
+                "--principal-ticket",
+                "JIRA-123",
+            ],
+        )
         assert result.exit_code == 0
 
     def test_check_without_ticket_denied(self):
         path = write_file(BUNDLE_V2)
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "check", path,
-            "--tool", "deploy_service",
-            "--args", '{"service": "api"}',
-            "--principal-role", "sre",
-            # no ticket
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                path,
+                "--tool",
+                "deploy_service",
+                "--args",
+                '{"service": "api"}',
+                "--principal-role",
+                "sre",
+                # no ticket
+            ],
+        )
         assert result.exit_code == 1
         assert "require-ticket" in result.output or "ticket" in result.output.lower()
 
     def test_check_with_environment(self):
         path = write_file(VALID_BUNDLE)
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "check", path,
-            "--tool", "read_file",
-            "--args", '{"path": "safe.txt"}',
-            "--environment", "staging",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                path,
+                "--tool",
+                "read_file",
+                "--args",
+                '{"path": "safe.txt"}',
+                "--environment",
+                "staging",
+            ],
+        )
         assert result.exit_code == 0
 
     def test_check_invalid_json_args(self):
         path = write_file(VALID_BUNDLE)
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "check", path,
-            "--tool", "read_file",
-            "--args", "not valid json",
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                path,
+                "--tool",
+                "read_file",
+                "--args",
+                "not valid json",
+            ],
+        )
         assert result.exit_code == 2 or result.exit_code == 1
         assert "json" in result.output.lower() or "invalid" in result.output.lower()
 
@@ -520,11 +572,17 @@ class TestCheckCommand:
         """Output should indicate how many rules were evaluated."""
         path = write_file(VALID_BUNDLE)
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "check", path,
-            "--tool", "read_file",
-            "--args", '{"path": "safe.txt"}',
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                path,
+                "--tool",
+                "read_file",
+                "--args",
+                '{"path": "safe.txt"}',
+            ],
+        )
         assert result.exit_code == 0
         # Should mention number of rules evaluated
         assert "rule" in result.output.lower() or "contract" in result.output.lower()
@@ -533,22 +591,28 @@ class TestCheckCommand:
         """Tool not targeted by any pre contract should pass."""
         path = write_file(VALID_BUNDLE)
         runner = CliRunner()
-        result = runner.invoke(cli, [
-            "check", path,
-            "--tool", "send_email",
-            "--args", '{"to": "test@test.com"}',
-        ])
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                path,
+                "--tool",
+                "send_email",
+                "--args",
+                '{"to": "test@test.com"}',
+            ],
+        )
         assert result.exit_code == 0
 
 
 # ---------------------------------------------------------------------------
-# 3. callguard diff
+# 3. edictum diff
 # ---------------------------------------------------------------------------
 
 
 class TestDiffCommand:
     """
-    SPEC: callguard diff <old.yaml> <new.yaml>
+    SPEC: edictum diff <old.yaml> <new.yaml>
 
     Compare two contract bundles and show what changed.
     Output categories:
@@ -617,7 +681,7 @@ class TestDiffCommand:
         result = runner.invoke(cli, ["diff", old, new])
         # Should have some kind of summary
         output_lower = result.output.lower()
-        assert ("added" in output_lower or "removed" in output_lower or "changed" in output_lower)
+        assert "added" in output_lower or "removed" in output_lower or "changed" in output_lower
 
     def test_diff_invalid_file(self):
         valid = write_file(VALID_BUNDLE)
@@ -629,13 +693,13 @@ class TestDiffCommand:
 
 
 # ---------------------------------------------------------------------------
-# 4. callguard replay
+# 4. edictum replay
 # ---------------------------------------------------------------------------
 
 
 class TestReplayCommand:
     """
-    SPEC: callguard replay <file.yaml> --audit-log <events.jsonl>
+    SPEC: edictum replay <file.yaml> --audit-log <events.jsonl>
                            [--output <report.jsonl>]
 
     Replay an audit log against a (potentially different) contract bundle.
@@ -722,11 +786,17 @@ class TestReplayCommand:
         contracts = write_file(VALID_BUNDLE)
         output_path = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False).name
         runner = CliRunner()
-        runner.invoke(cli, [
-            "replay", contracts,
-            "--audit-log", audit_log,
-            "--output", output_path,
-        ])
+        runner.invoke(
+            cli,
+            [
+                "replay",
+                contracts,
+                "--audit-log",
+                audit_log,
+                "--output",
+                output_path,
+            ],
+        )
         # Output file should be created with details
         output = Path(output_path)
         assert output.exists()
@@ -778,7 +848,7 @@ class TestReplayCommand:
         """Malformed JSONL lines should be skipped with a warning, not crash."""
         log_content = (
             '{"action":"call_allowed","tool_name":"bash","tool_args":{"command":"ls"}}\n'
-            'not json\n'
+            "not json\n"
             '{"action":"call_allowed","tool_name":"bash","tool_args":{"command":"pwd"}}'
         )
         log_path = write_file(log_content, suffix=".jsonl")

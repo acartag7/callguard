@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from callguard import CallGuard, create_envelope
-from callguard.session import Session
-from callguard.storage import MemoryBackend
+from edictum import Edictum, create_envelope
+from edictum.session import Session
+from edictum.storage import MemoryBackend
 
 
 class NullAuditSink:
@@ -36,7 +36,7 @@ def null_sink():
 
 @pytest.fixture
 def guard(null_sink, backend):
-    return CallGuard(
+    return Edictum(
         environment="test",
         audit_sink=null_sink,
         backend=backend,

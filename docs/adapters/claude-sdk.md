@@ -1,6 +1,6 @@
 # Claude Agent SDK Adapter
 
-The `ClaudeAgentSDKAdapter` connects CallGuard to Anthropic's Claude Agent SDK.
+The `ClaudeAgentSDKAdapter` connects Edictum to Anthropic's Claude Agent SDK.
 It translates governance decisions into the SDK's hook format -- a dict with
 `pre_tool_use` and `post_tool_use` async functions that the SDK calls before and
 after every tool invocation.
@@ -11,33 +11,33 @@ The Claude Agent SDK adapter requires only the YAML engine for contract loading.
 No additional framework dependencies are needed:
 
 ```bash
-pip install callguard[yaml]
+pip install edictum[yaml]
 ```
 
 ## Setup
 
-### 1. Create a CallGuard instance
+### 1. Create a Edictum instance
 
 Load contracts from a YAML file, a built-in template, or define them in Python:
 
 ```python
-from callguard import CallGuard, Principal
+from edictum import Edictum, Principal
 
 # From a YAML contract bundle
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 
 # Or from a built-in template
-guard = CallGuard.from_template("file-agent")
+guard = Edictum.from_template("file-agent")
 
 # Or with Python contracts
-from callguard import deny_sensitive_reads
-guard = CallGuard(contracts=[deny_sensitive_reads()])
+from edictum import deny_sensitive_reads
+guard = Edictum(contracts=[deny_sensitive_reads()])
 ```
 
 ### 2. Create the adapter
 
 ```python
-from callguard.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
+from edictum.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
 
 principal = Principal(
     user_id="alice",
@@ -66,11 +66,11 @@ Pass this dict when creating your Claude client or agent. The SDK will call
 
 ```python
 import asyncio
-from callguard import CallGuard, Principal
-from callguard.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
+from edictum import Edictum, Principal
+from edictum.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
 
 # Define contracts via YAML
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 
 # Create adapter with identity context
 adapter = ClaudeAgentSDKAdapter(
@@ -145,7 +145,7 @@ If no warnings are raised, the post-hook returns `{}`.
 To deploy contracts without enforcement, create the guard in observe mode:
 
 ```python
-guard = CallGuard.from_yaml("contracts.yaml", mode="observe")
+guard = Edictum.from_yaml("contracts.yaml", mode="observe")
 adapter = ClaudeAgentSDKAdapter(guard=guard)
 ```
 
@@ -163,13 +163,13 @@ By default, audit events are printed to stdout as JSON. You can direct them to a
 file, a webhook, or any custom sink:
 
 ```python
-from callguard import CallGuard
-from callguard.audit import FileAuditSink, RedactionPolicy
+from edictum import Edictum
+from edictum.audit import FileAuditSink, RedactionPolicy
 
 redaction = RedactionPolicy()
 sink = FileAuditSink("audit.jsonl", redaction=redaction)
 
-guard = CallGuard.from_yaml(
+guard = Edictum.from_yaml(
     "contracts.yaml",
     audit_sink=sink,
     redaction=redaction,

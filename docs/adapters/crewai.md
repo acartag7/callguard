@@ -7,16 +7,16 @@ these hooks.
 ## Installation
 
 ```bash
-pip install callguard[crewai]
+pip install edictum[crewai]
 ```
 
 ## Setup
 
 ```python
-from callguard import CallGuard, Principal
-from callguard.adapters.crewai import CrewAIAdapter
+from edictum import Edictum, Principal
+from edictum.adapters.crewai import CrewAIAdapter
 
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 
 adapter = CrewAIAdapter(
     guard=guard,
@@ -31,17 +31,17 @@ adapter.register()
 The `register()` method imports CrewAI's `before_tool_call` and
 `after_tool_call` decorators and registers the adapter's hook functions as
 global handlers. After this call, every tool invocation in the CrewAI runtime
-passes through CallGuard governance.
+passes through Edictum governance.
 
 ## Full Example
 
 ```python
-from callguard import CallGuard, Principal
-from callguard.adapters.crewai import CrewAIAdapter
+from edictum import Edictum, Principal
+from edictum.adapters.crewai import CrewAIAdapter
 from crewai import Agent, Crew, Task
 
 # Configure governance
-guard = CallGuard.from_yaml("contracts.yaml")
+guard = Edictum.from_yaml("contracts.yaml")
 adapter = CrewAIAdapter(
     guard=guard,
     principal=Principal(user_id="deploy-crew", role="ci"),
@@ -91,7 +91,7 @@ result = crew.kickoff()
 ## Observe Mode
 
 ```python
-guard = CallGuard.from_yaml("contracts.yaml", mode="observe")
+guard = Edictum.from_yaml("contracts.yaml", mode="observe")
 adapter = CrewAIAdapter(guard=guard)
 adapter.register()
 ```
@@ -102,12 +102,12 @@ normally.
 ## Custom Audit Sinks
 
 ```python
-from callguard.audit import FileAuditSink, RedactionPolicy
+from edictum.audit import FileAuditSink, RedactionPolicy
 
 redaction = RedactionPolicy()
 sink = FileAuditSink("audit.jsonl", redaction=redaction)
 
-guard = CallGuard.from_yaml(
+guard = Edictum.from_yaml(
     "contracts.yaml",
     audit_sink=sink,
     redaction=redaction,

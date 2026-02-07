@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Agno + CallGuard demo — file cleanup agent.
+"""Agno + Edictum demo — file cleanup agent.
 
 Uses GPT-4o-mini via OpenAI, routed through the Agno adapter's
 _hook_async wrap-around pattern to show governance in action.
 
 Usage:
     bash setup.sh              # create /tmp/messy_files/
-    python demo_agno.py        # WITHOUT CallGuard
-    python demo_agno.py --guard    # WITH CallGuard
+    python demo_agno.py        # WITHOUT Edictum
+    python demo_agno.py --guard    # WITH Edictum
 
 Requires: OPENAI_API_KEY
 """
@@ -22,7 +22,7 @@ import sys
 
 from openai import OpenAI
 from tools import (
-    CALLGUARD_TOOLS_CONFIG,
+    EDICTUM_TOOLS_CONFIG,
     OPENAI_TOOLS,
     SYSTEM_PROMPT,
     TOOL_DISPATCH,
@@ -56,7 +56,7 @@ def run_without_guard(client: OpenAI) -> None:
     ]
 
     print("=" * 60)
-    print("  Agno Demo: WITHOUT CallGuard")
+    print("  Agno Demo: WITHOUT Edictum")
     print("=" * 60)
     print()
 
@@ -92,31 +92,31 @@ def run_without_guard(client: OpenAI) -> None:
 
     print(f"\n{'─' * 60}")
     print(f"Total calls: {call_count}  |  Audit: NONE  |  Secrets protection: NONE")
-    write_metrics_summary(metrics, "/tmp/callguard_agno_metrics.json", {"mode": "without_guard"})
+    write_metrics_summary(metrics, "/tmp/edictum_agno_metrics.json", {"mode": "without_guard"})
 
 
 async def run_with_guard(client: OpenAI) -> None:
-    """Run the same agent, governed by CallGuard via the Agno adapter.
+    """Run the same agent, governed by Edictum via the Agno adapter.
 
     Agno uses a wrap-around pattern: the hook receives (name, callable, args)
     and must call the callable itself or return a denial string.
     """
     from contracts import ALL_CONTRACTS
 
-    from callguard import CallGuard, FileAuditSink
-    from callguard.adapters.agno import AgnoAdapter
+    from edictum import Edictum, FileAuditSink
+    from edictum.adapters.agno import AgnoAdapter
 
-    audit_path = "/tmp/callguard_agno_audit.jsonl"
-    metrics_path = "/tmp/callguard_agno_metrics.json"
+    audit_path = "/tmp/edictum_agno_audit.jsonl"
+    metrics_path = "/tmp/edictum_agno_metrics.json"
     if os.path.exists(audit_path):
         os.remove(audit_path)
 
     metrics = DemoMetrics()
-    guard = CallGuard(
+    guard = Edictum(
         environment="demo",
         mode="enforce",
         contracts=ALL_CONTRACTS,
-        tools=CALLGUARD_TOOLS_CONFIG,
+        tools=EDICTUM_TOOLS_CONFIG,
         audit_sink=FileAuditSink(audit_path),
     )
     adapter = AgnoAdapter(guard, session_id="demo-agno")
@@ -127,7 +127,7 @@ async def run_with_guard(client: OpenAI) -> None:
     ]
 
     print("=" * 60)
-    print("  Agno Demo: WITH CallGuard")
+    print("  Agno Demo: WITH Edictum")
     print("=" * 60)
     print()
 
@@ -166,7 +166,7 @@ async def run_with_guard(client: OpenAI) -> None:
 
             if result.startswith("DENIED:"):
                 denied_count += 1
-                print(f"  ** CALLGUARD: {result}\n")
+                print(f"  ** EDICTUM: {result}\n")
             else:
                 preview = result[:200] + "..." if len(result) > 200 else result
                 print(f"  -> {preview}\n")
@@ -198,8 +198,8 @@ def _print_audit(path: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Agno + CallGuard demo")
-    parser.add_argument("--guard", action="store_true", help="Enable CallGuard governance")
+    parser = argparse.ArgumentParser(description="Agno + Edictum demo")
+    parser.add_argument("--guard", action="store_true", help="Enable Edictum governance")
     args = parser.parse_args()
 
     if not os.environ.get("OPENAI_API_KEY"):

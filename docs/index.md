@@ -1,11 +1,11 @@
-# CallGuard
+# Edictum
 
 **Runtime contracts for AI agents.**
 
-AI agents that call tools -- reading files, querying databases, invoking APIs -- operate with real-world side effects. A misconfigured agent can exfiltrate secrets, exceed rate limits, or mutate production data before anyone notices. CallGuard sits between your agent and its tools, enforcing contracts that deny dangerous calls before they execute.
+AI agents that call tools -- reading files, querying databases, invoking APIs -- operate with real-world side effects. A misconfigured agent can exfiltrate secrets, exceed rate limits, or mutate production data before anyone notices. Edictum sits between your agent and its tools, enforcing contracts that deny dangerous calls before they execute.
 
 ```yaml
-apiVersion: callguard/v1
+apiVersion: edictum/v1
 kind: ContractBundle
 metadata:
   name: file-safety
@@ -24,7 +24,7 @@ contracts:
       message: "Blocked read of sensitive path: {args.path}"
 ```
 
-With this contract loaded, any agent framework integrated through CallGuard will be denied access to `.env` files, shadow passwords, and private keys -- regardless of which LLM is driving the agent.
+With this contract loaded, any agent framework integrated through Edictum will be denied access to `.env` files, shadow passwords, and private keys -- regardless of which LLM is driving the agent.
 
 ---
 
@@ -40,7 +40,7 @@ Define preconditions, postconditions, and session limits in declarative YAML. Co
 
 ### Six Framework Adapters
 
-Thin translation layers for **Claude Agent SDK**, **LangChain**, **CrewAI**, **Agno**, **Semantic Kernel**, and **OpenAI Agents**. Each adapter maps the framework's native hook or middleware pattern into CallGuard's canonical pipeline. Swap frameworks without rewriting your security policy.
+Thin translation layers for **Claude Agent SDK**, **LangChain**, **CrewAI**, **Agno**, **Semantic Kernel**, and **OpenAI Agents**. Each adapter maps the framework's native hook or middleware pattern into Edictum's canonical pipeline. Swap frameworks without rewriting your security policy.
 
 ### Observe Mode
 
@@ -56,7 +56,7 @@ Every evaluation produces an `AuditEvent` with the tool name, verdict, principal
 
 ### OpenTelemetry Integration
 
-Optional spans and metrics for every contract evaluation. If the OpenTelemetry SDK is installed, CallGuard emits traces automatically. If not, it degrades to a silent no-op. Zero configuration required either way.
+Optional spans and metrics for every contract evaluation. If the OpenTelemetry SDK is installed, Edictum emits traces automatically. If not, it degrades to a silent no-op. Zero configuration required either way.
 
 ### Zero Runtime Dependencies
 
@@ -68,13 +68,13 @@ The core library has no runtime dependencies beyond Python 3.11+. YAML support, 
 
 ```bash
 # Core library (Python contracts, pipeline, audit)
-pip install callguard
+pip install edictum
 
 # With YAML contract support
-pip install callguard[yaml]
+pip install edictum[yaml]
 
 # Everything (all adapters, YAML, telemetry)
-pip install callguard[all]
+pip install edictum[all]
 ```
 
 ---
@@ -82,6 +82,6 @@ pip install callguard[all]
 ## Next Steps
 
 - [**Quickstart**](quickstart.md) -- install, write a contract, and block your first dangerous call in five minutes
-- **YAML Reference** -- full schema documentation for `callguard/v1` contract bundles
+- **YAML Reference** -- full schema documentation for `edictum/v1` contract bundles
 - **Adapter Guides** -- framework-specific integration for all six supported agent libraries
 - **Audit Sinks** -- configure where contract evaluations are logged and shipped

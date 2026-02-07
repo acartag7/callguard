@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from callguard import CallGuard, Verdict, precondition
-from callguard.adapters.crewai import CrewAIAdapter
-from callguard.audit import AuditAction
-from callguard.storage import MemoryBackend
+from edictum import Edictum, Verdict, precondition
+from edictum.adapters.crewai import CrewAIAdapter
+from edictum.audit import AuditAction
+from edictum.storage import MemoryBackend
 from tests.conftest import NullAuditSink
 
 
@@ -18,7 +18,7 @@ def make_guard(**kwargs):
         "backend": MemoryBackend(),
     }
     defaults.update(kwargs)
-    return CallGuard(**defaults)
+    return Edictum(**defaults)
 
 
 def _make_before_context(tool_name: str = "TestTool", tool_input: dict | None = None) -> SimpleNamespace:

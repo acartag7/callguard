@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from callguard import CallGuard, Verdict, precondition
-from callguard.adapters.agno import AgnoAdapter
-from callguard.audit import AuditAction
-from callguard.storage import MemoryBackend
+from edictum import Edictum, Verdict, precondition
+from edictum.adapters.agno import AgnoAdapter
+from edictum.audit import AuditAction
+from edictum.storage import MemoryBackend
 from tests.conftest import NullAuditSink
 
 
@@ -16,7 +16,7 @@ def make_guard(**kwargs):
         "backend": MemoryBackend(),
     }
     defaults.update(kwargs)
-    return CallGuard(**defaults)
+    return Edictum(**defaults)
 
 
 class TestAgnoAdapter:
@@ -172,6 +172,7 @@ class TestAgnoAdapter:
 
     async def test_observe_mode_full_lifecycle(self):
         """Test observe mode allows denied calls through and emits CALL_WOULD_DENY + CALL_EXECUTED."""
+
         @precondition("*")
         def always_deny(envelope):
             return Verdict.fail("would deny")

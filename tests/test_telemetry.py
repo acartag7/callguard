@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from callguard.envelope import create_envelope
-from callguard.telemetry import _HAS_OTEL, GovernanceTelemetry, _NoOpSpan
+from edictum.envelope import create_envelope
+from edictum.telemetry import _HAS_OTEL, GovernanceTelemetry, _NoOpSpan
 
 
 class TestNoOpSpan:

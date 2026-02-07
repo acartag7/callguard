@@ -1,16 +1,16 @@
-# CallGuard Architecture
+# Edictum Architecture
 
 > Runtime safety for AI agents. Stop agents before they break things.
 
 ## What It Does
 
-CallGuard sits between an agent's decision to call a tool and actual execution. It enforces contracts, hooks, audit trails, and operation limits. When a rule is violated, it tells the agent **why** so it can self-correct.
+Edictum sits between an agent's decision to call a tool and actual execution. It enforces contracts, hooks, audit trails, and operation limits. When a rule is violated, it tells the agent **why** so it can self-correct.
 
 ## Package Structure
 
 ```
-src/callguard/
-├── __init__.py          # CallGuard class, guard.run(), exceptions, re-exports
+src/edictum/
+├── __init__.py          # Edictum class, guard.run(), exceptions, re-exports
 ├── envelope.py          # ToolEnvelope (frozen), SideEffect, ToolRegistry, BashClassifier
 ├── hooks.py             # HookDecision (ALLOW/DENY)
 ├── contracts.py         # Verdict, @precondition, @postcondition, @session_contract
@@ -76,7 +76,7 @@ Pipeline.pre_execute() — 5 steps:
 
 **Observe mode** (`mode="observe"`): full pipeline runs, audit emits `CALL_WOULD_DENY`, but tool executes anyway. For shadow deployment.
 
-**Zero runtime deps.** OpenTelemetry via optional `callguard[otel]`.
+**Zero runtime deps.** OpenTelemetry via optional `edictum[otel]`.
 
 **Redaction at write time.** Destructive by design — no recovery. Sensitive keys, secret value patterns (OpenAI/AWS/JWT/GitHub/Slack), 32KB payload cap.
 
@@ -86,7 +86,7 @@ Pipeline.pre_execute() — 5 steps:
 
 **1. Framework-agnostic (`guard.run()`):**
 ```python
-guard = CallGuard(contracts=[deny_sensitive_reads()])
+guard = Edictum(contracts=[deny_sensitive_reads()])
 result = await guard.run("Bash", {"command": "ls"}, my_bash_fn)
 ```
 
@@ -95,12 +95,12 @@ result = await guard.run("Bash", {"command": "ls"}, my_bash_fn)
 All adapters are thin translation layers — governance logic stays in the pipeline.
 
 ```python
-from callguard.adapters.langchain import LangChainAdapter
-from callguard.adapters.crewai import CrewAIAdapter
-from callguard.adapters.agno import AgnoAdapter
-from callguard.adapters.semantic_kernel import SemanticKernelAdapter
-from callguard.adapters.openai_agents import OpenAIAgentsAdapter
-from callguard.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
+from edictum.adapters.langchain import LangChainAdapter
+from edictum.adapters.crewai import CrewAIAdapter
+from edictum.adapters.agno import AgnoAdapter
+from edictum.adapters.semantic_kernel import SemanticKernelAdapter
+from edictum.adapters.openai_agents import OpenAIAgentsAdapter
+from edictum.adapters.claude_agent_sdk import ClaudeAgentSDKAdapter
 
 adapter = LangChainAdapter(guard, session_id="session-1")
 ```
